@@ -1,0 +1,40 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      OPENAI_API_KEY: ""
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Run offline tests, build EXE and validate ZIP
+        run: python build_windows.py
+
+      - name: Upload recipient ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: TextGenerator-Windows
+          path: release/TextGenerator_Windows.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

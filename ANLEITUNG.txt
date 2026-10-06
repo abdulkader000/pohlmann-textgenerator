@@ -1,0 +1,36 @@
+TEXTGENERATOR – KURZANLEITUNG
+
+VORLÄUFIGE LIEFERUNG: Der Live-Test mit zwei echten Artikeln steht noch aus.
+Das zuletzt getestete API-Konto meldete aufgebrauchtes Guthaben bzw. ein
+erreichtes Nutzungslimit. Die zuständige Person muss nach verfügbarem Guthaben
+zwei Artikel auf Wortzahl (720–880 bei Ziel 800), alle Links, Lesbarkeit und
+unterschiedliche Formulierungen prüfen, bevor die Lieferung freigegeben wird.
+
+1. ZIP vollständig in einen eigenen Ordner entpacken.
+2. TextGenerator.exe doppelt anklicken. Die Oberfläche öffnet sich im Browser.
+3. Thema eingeben, Zielwortzahl bei 800 lassen und Linkliste einfügen.
+   Eine Zeile pro Link, zum Beispiel:
+   IT-Sicherheit, https://it-sicherheit.de/
+4. „Neuen Text generieren“ anklicken und warten.
+5. Artikel prüfen und „HTML herunterladen“ wählen, um die anklickbaren Links
+   zu erhalten. „Text herunterladen“ speichert den reinen Text.
+6. Für einen weiteren Artikel erneut generieren.
+7. Mit „Programm beenden“ die Anwendung schließen. Nur den Browser zu
+   schließen beendet das Programm nicht.
+
+Fertige Artikel liegen zusätzlich im Ordner „outputs“ neben dem Programm.
+Zum Generieren wird eine Internetverbindung benötigt. Die verlinkten Webseiten
+werden nicht gelesen. Inhalt und Aussagen vor Verwendung prüfen.
+
+Wenn eine Meldung über Guthaben oder Nutzungslimit erscheint:
+Bitte die zuständige Person informieren. Das API-Konto muss aufgeladen bzw.
+das Limit geprüft werden. Sie müssen das Programm nicht neu installieren.
+
+Wenn ein fehlender oder ungültiger Zugang gemeldet wird:
+Bitte die zuständige Person informieren; diese richtet die Konfiguration ein.
+
+Die Datei .env gehört zum Programm und muss im gleichen Ordner bleiben.
+Die Liefer-ZIP enthält darin nur einen Platzhalter. Die zuständige Person
+trägt den lokal bereitgestellten API-Schlüssel ausschließlich vor Ort in .env
+ein und startet das Programm danach neu. Keine alten Archivschlüssel nutzen.
+Die konfigurierte .env nicht in das Liefer-Archiv zurückkopieren.

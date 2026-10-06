@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Textgenerator – Linktexte</title>
+<style>
+:root{--ink:#182c3c;--accent:#087b73;--line:#dbe5e8}*{box-sizing:border-box}body{font:16px/1.65 system-ui,sans-serif;margin:0;background:#edf3f3;color:var(--ink)}main{max-width:1000px;margin:40px auto;padding:38px;background:white;border:1px solid var(--line);border-radius:22px;box-shadow:0 18px 60px #183c3c0a}h1{font-size:38px;letter-spacing:-1.3px;margin:0}h2{font-size:23px}label{display:block;font-weight:650;margin-top:22px}input,textarea,select{width:100%;font:inherit;padding:12px 14px;border:1px solid #bcced1;border-radius:9px;background:#fcfefe;color:var(--ink)}input:focus,textarea:focus,select:focus{outline:3px solid #087b7325;border-color:var(--accent)}textarea{font:14px/1.7 ui-monospace,monospace}button,.download{display:inline-block;background:var(--accent);color:white;padding:13px 20px;border:0;border-radius:9px;margin:18px 8px 0 0;text-decoration:none;font:inherit;font-weight:650;cursor:pointer}button:disabled{opacity:.5}.error{background:#fff0ec;border-left:4px solid #bd4a29;padding:18px;border-radius:8px}.notice{background:#fff5d9;padding:14px;border-radius:8px}.result{padding:26px;background:#f3f8f7;border:1px solid var(--line);border-radius:12px;margin-top:28px}.result a{color:var(--accent)}.result .download{color:white}small{display:block;color:#577078;margin-top:7px;font-size:13px}.eyebrow{font-size:12px;font-weight:750;letter-spacing:2px;color:var(--accent)}.steps{display:flex;gap:10px;margin:24px 0}.steps span{flex:1;background:#edf6f5;padding:12px;border-radius:9px;font-size:14px}.footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);margin-top:30px;padding-top:15px;color:#577078;font-size:13px}.quiet{background:white;color:#577078;border:1px solid var(--line);padding:8px 12px;margin:0;font-size:13px}#progress{display:block;font-size:14px;color:var(--accent)}@media(max-width:650px){main{margin:12px;padding:22px}h1{font-size:30px}.steps{flex-direction:column}.footer{gap:12px}}
+</style>
+<main>
+<div class="eyebrow">ARTIKEL · LINKS · NEUE PERSPEKTIVEN</div><h1>Textgenerator</h1>
+<p>Linktexte und Links eingeben – einen neuen deutschen Artikel mit anklickbaren Links erstellen.</p>
+<div class="steps"><span>1 · Thema auswählen</span><span>2 · Linkliste eingeben</span><span>3 · Artikel herunterladen</span></div>
+{% if demo %}<p class="notice">DEMO: Offline-Funktionstest. Die Beispieltexte stammen nicht von einer KI.</p>{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" id="form">
+<label for="site">Vorlage</label><select name="site" id="site"><option value="custom" {% if state.site == 'custom' %}selected{% endif %}>Eigene Linkliste</option>{% for site in sites %}<option {% if state.site == site %}selected{% endif %}>{{ site }}</option>{% endfor %}</select>
+<label for="label">Name für die Ergebnisdatei</label><input id="label" name="custom_site_name" value="{{ state.custom_site_name }}" placeholder="z. B. Witzgall" maxlength="100">
+<label for="topic">Thema</label><input id="topic" name="topic" value="{{ state.topic }}" required maxlength="300">
+<label for="words">Zielwortzahl</label><input id="words" name="words" type="number" min="200" max="2000" value="{{ state.words }}" required><small>Standard: 800 Wörter. Der fertige Artikel darf bis zu 10 % kürzer oder länger sein.</small>
+<label for="pairs">Wörter und zugehörige Links</label><textarea id="pairs" name="pairs" rows="12" required placeholder="IT-Sicherheit, https://it-sicherheit.de/&#10;Phishing, https://example.com/phishing">{{ state.pairs }}</textarea>
+<small>Ein Paar pro Zeile: Linktext, URL. Die sichtbare Liste wird verwendet; Einträge können geändert oder gelöscht werden. Für Linktexte mit Komma: „Linktext“ in geraden doppelten Anführungszeichen oder Tab als Trennzeichen verwenden.</small><br>
+<button id="submit">Neuen Text generieren</button><span id="progress" role="status"></span>
+</form>
+{% if result %}<section class="result"><h2>{{ 'Demo-Ergebnis' if demo else 'Generierter Artikel' }}</h2><p>{{ count }} Wörter · alle eingegebenen Linktexte verlinkt</p>{{ result|safe }}<a class="download" href="{{ url_for('download_file', filename=filename) }}">HTML herunterladen</a><a class="download" href="{{ url_for('download_file', filename=filename.replace('.html','.txt')) }}">Text herunterladen</a></section>{% endif %}
+<div class="footer"><span>Ergebnisse werden im Ordner „outputs“ gespeichert.</span><form method="post" action="{{ url_for('stop') }}" onsubmit="return confirm('Programm beenden? Laden Sie Ihren Artikel vorher herunter.');"><input type="hidden" name="token" value="{{ shutdown_token }}"><button class="quiet">Programm beenden</button></form></div>
+</main>
+<script>
+const data={{ site_data|tojson }};
+document.querySelector('#site').addEventListener('change',e=>{document.querySelector('#pairs').value=Object.entries(data[e.target.value]||{}).map(([k,v])=>JSON.stringify(k)+', '+v).join('\n')});
+document.querySelector('#form').addEventListener('submit',()=>{document.querySelector('#submit').disabled=true;document.querySelector('#progress').textContent='Text wird erstellt. Das kann einige Minuten dauern …'});
+</script>
+</html>

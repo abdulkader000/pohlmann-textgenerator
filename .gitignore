@@ -1,0 +1,26 @@
+# Local credentials; only the placeholder example is versioned.
+.env*
+!.env.example
+*.pem
+*.key
+
+# Python environments and caches.
+.venv*/
+.build-venv/
+venv*/
+env/
+ENV/
+.tox/
+.nox/
+__pycache__/
+*.py[cod]
+
+# Generated articles, builds and downloaded artifacts.
+outputs/
+build/
+dist/
+release/
+*.exe
+*.zip
+*.log
+.DS_Store
