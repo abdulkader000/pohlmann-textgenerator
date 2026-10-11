@@ -10,7 +10,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parent
 RELEASE_FILES = ('TextGenerator.exe', '.env', 'ANLEITUNG.txt')
 # Fixed public configuration: never copy .env or an edited .env.example.
-RELEASE_ENV = 'OPENAI_API_KEY=YOUR_API_KEY_HERE\nOPENAI_MODEL=gpt-4\n'
+RELEASE_ENV = 'OPENAI_API_KEY=YOUR_API_KEY_HERE\nOPENAI_MODEL=gpt-4.1\n'
 
 
 def validate_archive(archive):
@@ -57,7 +57,7 @@ def main():
     archive = package_release()
     print('Fertig:', archive)
     print('Die ZIP enthält einen Platzhalter-Schlüssel. Die zuständige Person konfiguriert .env nur lokal neben der entpackten EXE. Keine konfigurierte .env in das Liefer-Archiv übernehmen.')
-    print('Vorläufige Lieferung: Windows-EXE einschließlich Browserstart, Demo, Downloads, Beenden und Neustart prüfen. Echten Live-Test mit zwei Artikeln erst nach verfügbarem API-Guthaben durchführen.')
+    print('Testversion mit gpt-4.1: Windows-Start, Browser, Generierung und Korrektur, Links, Downloads, Beenden und Neustart prüfen. Ergebnisse sind Entwürfe und brauchen eine Inhaltsprüfung vor Veröffentlichung; keine Lieferfreigabe durch den Build.')
 
 if __name__ == '__main__':
     main()

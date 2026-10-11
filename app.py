@@ -14,7 +14,7 @@ from flask import Flask, render_template, request, send_from_directory, abort
 from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
 from werkzeug.serving import make_server
 
-from text_engine import generate_article, parse_pairs, render_text, word_count
+from text_engine import generate_article, parse_pairs, render_text, word_count, pending_link_issues
 
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 RESOURCE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
@@ -36,7 +36,9 @@ def demo_article(pairs, target):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     state = dict(site='custom', custom_site_name='', topic='Cybersicherheit', words='800', pairs='')
+    model = os.getenv('OPENAI_MODEL', 'gpt-4.1')
     result, filename, count, error = None, None, None, None
+    pending = {}
     if request.method == 'POST':
         state.update({key: request.form.get(key, state[key]) for key in state})
         try:
@@ -47,6 +49,7 @@ def index():
                 raise ValueError('Bitte ein Thema mit maximal 300 Zeichen eingeben.')
             # The visible textarea is authoritative: removed preset links stay removed.
             pairs = parse_pairs(state['pairs'])
+            pending = pending_link_issues(pairs)
             if app.config['DEMO_MODE']:
                 text = demo_article(pairs, target)
                 result, missing = render_text(text, pairs)
@@ -58,13 +61,16 @@ def index():
                 if not key or key == 'YOUR_API_KEY_HERE':
                     raise ValueError('Der Zugang ist noch nicht eingerichtet. Bitte die zuständige Person bitten, den API-Schlüssel in der Konfigurationsdatei neben dem Programm einzutragen.')
                 client = OpenAI(api_key=key, timeout=120, max_retries=0)
-                result, text, count = generate_article(client, os.getenv('OPENAI_MODEL', 'gpt-4'), pairs, state['topic'].strip(), target)
+                result, text, count = generate_article(
+                    client, model, pairs, state['topic'].strip(), target,
+                    on_attempt=app.config.get('GENERATION_OBSERVER'))
             label = state['custom_site_name'] if state['site'] == 'custom' else state['site']
             label = re.sub(r'[^\w-]+', '_', label or 'Artikel')[:70]
             suffix = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8]
-            filename = ('DEMO_' if app.config['DEMO_MODE'] else '') + f'{label}_{suffix}.html'
+            filename = ('DEMO_' if app.config['DEMO_MODE'] else 'ENTWURF_') + f'{label}_{suffix}.html'
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            document = '<!doctype html><html lang="de"><meta charset="utf-8"><title>Artikel</title><body>' + result + '</body></html>'
+            review_notice = '' if app.config['DEMO_MODE'] else '<p>Entwurf – Inhalt und Sprache vor Veröffentlichung prüfen. Keine automatische Inhaltsfreigabe.</p>'
+            document = '<!doctype html><html lang="de"><meta charset="utf-8"><title>Artikelentwurf</title><body>' + review_notice + '<article>' + result + '</article></body></html>'
             (OUTPUT_DIR / filename).write_text(document, encoding='utf-8')
             (OUTPUT_DIR / filename.replace('.html', '.txt')).write_text(text, encoding='utf-8')
         except ValueError as exc:
@@ -92,7 +98,8 @@ def index():
         if error:
             result, filename = None, None
     return render_template('index.html', state=state, sites=site_data, site_data=site_data,
-                           result=result, filename=filename, count=count, error=error, demo=app.config['DEMO_MODE'], shutdown_token=app.config['SHUTDOWN_TOKEN'])
+                           pending_issues=pending,
+                           result=result, filename=filename, count=count, error=error, demo=app.config['DEMO_MODE'], configured_model=model, shutdown_token=app.config['SHUTDOWN_TOKEN'])
 
 
 @app.route('/download/<filename>')

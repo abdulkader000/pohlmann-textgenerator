@@ -8,19 +8,21 @@
 <main>
 <div class="eyebrow">ARTIKEL · LINKS · NEUE PERSPEKTIVEN</div><h1>Textgenerator</h1>
 <p>Linktexte und Links eingeben – einen neuen deutschen Artikel mit anklickbaren Links erstellen.</p>
+<small>Konfiguriertes Modell: {{ configured_model }}. Nach einer Änderung der Konfiguration das Programm neu starten.</small>
 <div class="steps"><span>1 · Thema auswählen</span><span>2 · Linkliste eingeben</span><span>3 · Artikel herunterladen</span></div>
 {% if demo %}<p class="notice">DEMO: Offline-Funktionstest. Die Beispieltexte stammen nicht von einer KI.</p>{% endif %}
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% for term, reason in pending_issues.items() %}<p class="notice">Offene Frage in der Linkliste: {{ term }} — {{ reason }}</p>{% endfor %}
 <form method="post" id="form">
 <label for="site">Vorlage</label><select name="site" id="site"><option value="custom" {% if state.site == 'custom' %}selected{% endif %}>Eigene Linkliste</option>{% for site in sites %}<option {% if state.site == site %}selected{% endif %}>{{ site }}</option>{% endfor %}</select>
 <label for="label">Name für die Ergebnisdatei</label><input id="label" name="custom_site_name" value="{{ state.custom_site_name }}" placeholder="z. B. Witzgall" maxlength="100">
 <label for="topic">Thema</label><input id="topic" name="topic" value="{{ state.topic }}" required maxlength="300">
-<label for="words">Zielwortzahl</label><input id="words" name="words" type="number" min="200" max="2000" value="{{ state.words }}" required><small>Standard: 800 Wörter. Der fertige Artikel darf bis zu 10 % kürzer oder länger sein.</small>
+<label for="words">Zielwortzahl</label><input id="words" name="words" type="number" min="200" max="2000" value="{{ state.words }}" required><small>Standard: 800 Wörter. Der Entwurf darf bis zu 10 % kürzer oder länger sein.</small>
 <label for="pairs">Wörter und zugehörige Links</label><textarea id="pairs" name="pairs" rows="12" required placeholder="IT-Sicherheit, https://it-sicherheit.de/&#10;Phishing, https://example.com/phishing">{{ state.pairs }}</textarea>
 <small>Ein Paar pro Zeile: Linktext, URL. Die sichtbare Liste wird verwendet; Einträge können geändert oder gelöscht werden. Für Linktexte mit Komma: „Linktext“ in geraden doppelten Anführungszeichen oder Tab als Trennzeichen verwenden.</small><br>
 <button id="submit">Neuen Text generieren</button><span id="progress" role="status"></span>
 </form>
-{% if result %}<section class="result"><h2>{{ 'Demo-Ergebnis' if demo else 'Generierter Artikel' }}</h2><p>{{ count }} Wörter · alle eingegebenen Linktexte verlinkt</p>{{ result|safe }}<a class="download" href="{{ url_for('download_file', filename=filename) }}">HTML herunterladen</a><a class="download" href="{{ url_for('download_file', filename=filename.replace('.html','.txt')) }}">Text herunterladen</a></section>{% endif %}
+{% if result %}<section class="result"><h2>{{ 'Demo-Ergebnis' if demo else 'Artikelentwurf' }}</h2>{% if not demo %}<p class="notice">Entwurf – Inhalt und Sprache vor Veröffentlichung prüfen. Wortzahl und Links werden technisch geprüft; keine automatische Inhaltsfreigabe.</p>{% endif %}<p>{{ count }} Wörter · alle eingegebenen Linktexte verlinkt</p>{{ result|safe }}<a class="download" href="{{ url_for('download_file', filename=filename) }}">HTML herunterladen</a><a class="download" href="{{ url_for('download_file', filename=filename.replace('.html','.txt')) }}">Text herunterladen</a></section>{% endif %}
 <div class="footer"><span>Ergebnisse werden im Ordner „outputs“ gespeichert.</span><form method="post" action="{{ url_for('stop') }}" onsubmit="return confirm('Programm beenden? Laden Sie Ihren Artikel vorher herunter.');"><input type="hidden" name="token" value="{{ shutdown_token }}"><button class="quiet">Programm beenden</button></form></div>
 </main>
 <script>

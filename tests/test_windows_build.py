@@ -29,6 +29,7 @@ class WindowsBuildTests(unittest.TestCase):
             with zipfile.ZipFile(archive) as z:
                 self.assertEqual(z.namelist(), list(build.RELEASE_FILES))
                 self.assertEqual(z.read('.env').decode(), build.RELEASE_ENV)
+                self.assertIn('OPENAI_MODEL=gpt-4.1\n', z.read('.env').decode())
                 self.assertEqual(z.read('TextGenerator.exe'), executable)
 
     def test_validator_rejects_extra_files_configuration_and_non_exe(self):
