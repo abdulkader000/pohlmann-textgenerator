@@ -201,9 +201,9 @@ class EngineAcceptanceTests(unittest.TestCase):
                     self.assertIn('attachment;', download.headers['Content-Disposition'])
                     self.assertEqual(download.data, file.read_bytes())
                 if file.suffix == '.txt':
-                    self.assertEqual(file.read_text(), source)
+                    self.assertEqual(file.read_text(encoding='utf-8'), source)
                 else:
-                    self.assertIn('Keine automatische Inhaltsfreigabe', file.read_text())
+                    self.assertIn('Keine automatische Inhaltsfreigabe', file.read_text(encoding='utf-8'))
             self.assertEqual(sdk.call_args.kwargs['max_retries'], 0)
 
 
