@@ -3,6 +3,7 @@ import csv
 from dataclasses import dataclass
 import html
 import json
+import math
 import re
 import secrets
 from urllib.parse import urlsplit
@@ -503,7 +504,8 @@ def _merge_paragraph_patch(raw_text, draft, pairs, options, insert):
 
 
 def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on_draft=None, max_attempts=3):
-    lower, upper = round(target * .9), round(target * 1.1)
+    # Acceptance tolerance only; keep the existing writing prompt unchanged.
+    lower, upper = math.ceil(target * .875), math.floor(target * 1.125)
     if max_attempts not in (1, 2, 3):
         raise ValueError('Maximal drei Versuche pro Artikel.')
     forms = writing_link_forms(pairs)

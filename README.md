@@ -4,7 +4,7 @@ Vorhandenes Python/Flask-Tool für deutsche Artikelentwürfe mit anklickbaren Li
 
 ## Verhalten
 
-- Standardziel 800 Wörter, technische Annahme 720–880; weitere Ziele 200–2000.
+- Standardziel 800 Wörter, technische Annahme 700–900 (±12,5 %); weitere Ziele 200–2000 mit derselben Toleranz. Bruchteilige Untergrenzen werden aufgerundet, Obergrenzen abgerundet. Vollständige Linkabdeckung und korrekte URLs bleiben erforderlich. Schreibprompt und Zielbudgets bleiben unverändert.
 - Frei editierbare Linkliste; URLs werden nicht zum Generieren abgerufen.
 - Explizite grammatische Varianten mit festen URL-Zuordnungen; strikte Wort- und Bindestrichgrenzen.
 - Themenplanung passend zu den tatsächlichen Begriffen. Korrekturen bearbeiten passende Absätze; Unterlänge wird auf mehrere Absätze verteilt. Andere Absätze und vorhandene Links bleiben geschützt. Eine schlechtere Korrektur ersetzt nicht die beste Fassung.
@@ -48,4 +48,4 @@ Die feste .env enthält YOUR_API_KEY_HERE und OPENAI_MODEL=gpt-4.1. Der Build ko
 
 [WINDOWS_TEST_CHECKLIST.md](WINDOWS_TEST_CHECKLIST.md): Start aus einem Ordner mit Leerzeichen, automatischer Browserstart, Generierung und gegebenenfalls Korrektur, Links, HTML/TXT-Downloads, Beenden und Neustart. Auch Demo prüfen. Beim echten Test API-Kosten und Testumfang vorher festlegen. Das Browserfenster allein zu schließen beendet den Prozess nicht.
 
-Die jüngste echte Drei-Link-Generierung hatte 715 Wörter und war nicht akzeptiert. Eine lokale Mock-Erweiterung prüft nur die Mechanik. Die Qualität neuer Artikel und der Windows-Lauf bleiben zu prüfen; keine Weitergabe als freigegebene Version.
+Der Nutzer hat die bisherige EXE auf Windows geprüft: automatischer Browserstart ohne Konsole, Beenden und Neustart sowie Speichern im Ausgabeordner funktionieren. Drei Links wurden erfolgreich generiert und im HTML geprüft. Die vollständige Vorlage wurde nach drei Versuchen mit 882 Wörtern, ohne fehlende Linktexte oder Formatprobleme, wegen der alten Obergrenze 880 abgelehnt. Die neue Toleranz akzeptiert diesen Umfang technisch; die vollständige Vorlage muss mit der neuen EXE erneut getestet werden. Lokale Mock-Tests sind kein Nachweis für die Qualität neuer Artikel; keine Weitergabe als freigegebene Version.

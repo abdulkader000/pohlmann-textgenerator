@@ -8,6 +8,9 @@ nicht für die Lieferung freigegeben. Die EXE muss auf Windows getestet werden.
 1. ZIP vollständig in einen eigenen Ordner entpacken.
 2. TextGenerator.exe doppelt anklicken. Die Oberfläche öffnet sich im Browser.
 3. Thema eingeben, Zielwortzahl bei 800 lassen und Linkliste einfügen.
+   Ziel 800: akzeptiert werden 700–900 Wörter. Für andere Zielwortzahlen
+   gilt ebenfalls ±12,5 %, auf ganze Wörter innerhalb der Grenzen begrenzt.
+   Alle eingegebenen Linktexte müssen weiterhin korrekt verlinkt sein.
    Eine Zeile pro Link, zum Beispiel:
    IT-Sicherheit, https://it-sicherheit.de/
 4. „Neuen Text generieren“ anklicken und warten.

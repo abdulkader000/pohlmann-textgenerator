@@ -31,17 +31,18 @@ def paragraph(start, words):
 def short_article():
     beginnings = ('IT-Sicherheit.', 'Ein Backup hilft.', 'E-Mail-Sicherheit.',
                   'Zuständigkeiten.', 'Überprüfung.', 'Zusammenwirken.', 'Vertiefung.', 'Schluss.')
-    counts = (91, 116, 99, 89, 87, 87, 90, 56)
+    counts = (91, 116, 91, 81, 79, 79, 82, 56)
     return '\n\n'.join(paragraph(s, n).strip() for s, n in zip(beginnings, counts))
 
 
-def full_article(missing=None):
+def full_article(missing=None, words=760):
     plan = article_plan(TEMPLATE, 'Cybersicherheit', 800)
     blocks = []
     for i, section in enumerate(plan):
         keys = [k for k in section['keys'] if k != missing]
         start = '; '.join(keys) + '.' if keys else 'Schluss.'
-        blocks.append(paragraph(start, section['words'] - (40 if i == 7 else 0)).strip())
+        count = section['words'] - (40 if i == 7 else 0) + (words - 760 if i == 1 else 0)
+        blocks.append(paragraph(start, count).strip())
     return '\n\n'.join(blocks)
 
 
@@ -102,15 +103,16 @@ class EngineAcceptanceTests(unittest.TestCase):
         self.assertIn('DORA-', approved_link_forms(TEMPLATE)['DORA'])
         self.assertNotIn('DORA-', writing_link_forms(TEMPLATE)['DORA'])
 
-    def test_715_expansion_is_distributed_and_preserves_protected_text(self):
+    def test_675_expansion_is_distributed_and_preserves_protected_text(self):
         source = short_article()
-        self.assertEqual(word_count(source), 715)
-        blocks, options, insert = _repair_options(assess_article(source, SMALL), SMALL, 720, 880, 800,
+        self.assertEqual(word_count(source), 675)
+        blocks, options, insert = _repair_options(assess_article(source, SMALL), SMALL, 700, 900, 800,
                                                   article_plan(SMALL, 'Cybersicherheit', 800))
         self.assertFalse(insert)
         self.assertEqual([o['paragraph_index'] + 1 for o in options], [3, 4, 5, 6, 7])
-        self.assertEqual([o['replacement_target_words'] - o['current_words'] for o in options],
-                         [10, 18, 20, 20, 17])
+        growth = [o['replacement_target_words'] - o['current_words'] for o in options]
+        self.assertEqual(sum(growth), 125)
+        self.assertTrue(all(amount > 0 for amount in growth))
         replacement = '\n\n'.join(paragraph(blocks[o['paragraph_index']], o['replacement_target_words']).strip()
                                    for o in options)
         client, calls = fake_client([reply(source), reply(replacement)])
@@ -131,7 +133,7 @@ class EngineAcceptanceTests(unittest.TestCase):
         source = full_article('Datenschutz')
         draft = assess_article(source, TEMPLATE)
         self.assertEqual((draft.words, draft.missing), (760, ('Datenschutz',)))
-        blocks, options, _ = _repair_options(draft, TEMPLATE, 720, 880, 800)
+        blocks, options, _ = _repair_options(draft, TEMPLATE, 700, 900, 800)
         self.assertEqual([o['paragraph_index'] for o in options], [4])
         replacement = blocks[4].replace('Prüfung', 'Datenschutz', 1)
         client, calls = fake_client([reply(source), reply(replacement)])
@@ -178,8 +180,59 @@ class EngineAcceptanceTests(unittest.TestCase):
         self.assertTrue(all(c['model'] == 'gpt-4.1' for c in calls))
         self.assertEqual(caught.exception.best_draft.text, source)
 
+    def test_800_word_acceptance_limits_keep_full_link_coverage(self):
+        for words in (700, 715, 882, 900, 699, 901):
+            with self.subTest(words=words):
+                source = full_article(words=words)
+                self.assertEqual(word_count(source), words)
+                self.assertEqual(render_text(source, TEMPLATE)[1], [])
+                client, calls = fake_client([reply(source)])
+                if 700 <= words <= 900:
+                    html, text, count = generate_article(client, 'gpt-4.1', TEMPLATE, 'Cybersicherheit', 800,
+                                                         max_attempts=1)
+                    self.assertEqual((text, count), (source, words))
+                    for url in TEMPLATE.values():
+                        self.assertIn(f'href="{url}"', html)
+                else:
+                    with self.assertRaises(ArticleGenerationError) as caught:
+                        generate_article(client, 'gpt-4.1', TEMPLATE, 'Cybersicherheit', 800, max_attempts=1)
+                    self.assertEqual(caught.exception.best_draft.words, words)
+                self.assertEqual(len(calls), 1)
+                prompt = calls[0]['messages'][-1]['content']
+                self.assertIn('Ziel 800 Wörter (verbindlich 720–880)', prompt)
+                self.assertEqual(calls[0]['model'], 'gpt-4.1')
+
+    def test_missing_phrase_rejected_even_within_expanded_range(self):
+        for words in (700, 882, 900):
+            with self.subTest(words=words):
+                source = full_article('Backup', words=words)
+                client, calls = fake_client([reply(source)])
+                with self.assertRaises(ArticleGenerationError) as caught:
+                    generate_article(client, 'gpt-4.1', TEMPLATE, 'Cybersicherheit', 800, max_attempts=1)
+                self.assertEqual(caught.exception.best_draft.words, words)
+                self.assertEqual(caught.exception.best_draft.missing, ('Backup',))
+                self.assertEqual(len(calls), 1)
+
+    def test_same_tolerance_applies_to_other_targets_with_inward_rounding(self):
+        for target, lower, upper in ((200, 175, 225), (801, 701, 901), (805, 705, 905),
+                                     (1200, 1050, 1350), (2000, 1750, 2250)):
+            for words in (lower - 1, lower, upper, upper + 1):
+                with self.subTest(target=target, words=words):
+                    source = paragraph('IT-Sicherheit. Backup. E-Mail-Sicherheit.', words).strip()
+                    client, calls = fake_client([reply(source)])
+                    if lower <= words <= upper:
+                        html, text, count = generate_article(client, 'gpt-4.1', SMALL, 'Cybersicherheit', target,
+                                                             max_attempts=1)
+                        self.assertEqual((text, count), (source, words))
+                        for url in SMALL.values():
+                            self.assertIn(f'href="{url}"', html)
+                    else:
+                        with self.assertRaises(ArticleGenerationError):
+                            generate_article(client, 'gpt-4.1', SMALL, 'Cybersicherheit', target, max_attempts=1)
+                    self.assertEqual(len(calls), 1)
+
     def test_app_labels_draft_and_downloads_plain_article(self):
-        source = full_article()
+        source = full_article(words=882)
         client, _ = fake_client([reply(source)])
         data = dict(site='custom', custom_site_name='Offline', topic='Cybersicherheit', words='800',
                     pairs='\n'.join(f'{k}, {v}' for k, v in TEMPLATE.items()))
@@ -192,6 +245,9 @@ class EngineAcceptanceTests(unittest.TestCase):
             self.assertIn('Artikelentwurf', page)
             self.assertIn('keine automatische Inhaltsfreigabe', page)
             self.assertIn('Konfiguriertes Modell: gpt-4.1', page)
+            self.assertIn('882 Wörter', page)
+            self.assertIn('700–900', page)
+            self.assertIn('±12,5 %', page)
             files = list(Path(temp).iterdir())
             self.assertEqual(len(files), 2)
             for file in files:
