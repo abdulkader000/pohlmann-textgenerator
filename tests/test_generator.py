@@ -72,19 +72,20 @@ class GeneratorTests(unittest.TestCase):
             self.assertEqual(client.get('/download/../app.py').status_code, 404)
             module.app.config['DEMO_MODE'] = False
 
-    def test_credit_exhausted_preserves_inputs_and_saves_nothing(self):
+    def test_credit_exhausted_preserves_inputs_and_saves_no_successful_article(self):
         module.app.config.update(TESTING=True, DEMO_MODE=False)
         payload = dict(topic='Testthema', words='800', pairs='IT, https://example.com')
         req = httpx.Request('POST', 'https://api.openai.com/v1/chat/completions')
         resp = httpx.Response(429, request=req)
         for body in ({'code': 'credit_balance_exhausted', 'type': 'insufficient_quota'},
                      {'error': {'code': 'insufficient_quota', 'type': 'insufficient_quota'}}):
-            with self.subTest(body=body), tempfile.TemporaryDirectory() as temp, patch.object(module, 'OUTPUT_DIR', Path(temp)), patch.dict(os.environ, {'OPENAI_API_KEY': 'test-only'}), patch.object(module, 'OpenAI'), patch.object(module, 'generate_article', side_effect=RateLimitError('quota', response=resp, body=body)):
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as temp, patch.object(module, 'OUTPUT_DIR', Path(temp) / 'outputs'), patch.object(module, 'DIAGNOSTIC_DIR', Path(temp) / 'diagnostics'), patch.dict(os.environ, {'OPENAI_API_KEY': 'test-only'}), patch.object(module, 'OpenAI'), patch.object(module, 'generate_article', side_effect=RateLimitError('quota', response=resp, body=body)):
                 page = module.app.test_client().post('/', data=payload).get_data(as_text=True)
                 self.assertIn('API-Guthaben ist aufgebraucht', page)
                 self.assertIn('Testthema', page)
                 self.assertIn('IT, https://example.com', page)
-                self.assertEqual(list(Path(temp).iterdir()), [])
+                self.assertFalse((Path(temp) / 'outputs').exists())
+                self.assertEqual(len(list((Path(temp) / 'diagnostics').glob('*/report.json'))), 1)
 
     def test_shutdown_requires_session_token(self):
         client = module.app.test_client()

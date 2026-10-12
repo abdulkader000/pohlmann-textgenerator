@@ -13,6 +13,10 @@ Vorhandenes Python/Flask-Tool für deutsche Artikelentwürfe mit anklickbaren Li
 
 Die Vorlage korrigiert den dokumentierten Schreibfehler IT-Sicherheitszahler zu IT-Sicherheitszahlen; die zugehörige URL bleibt unverändert.
 
+Die Überarbeitung der zweiten Vorlage ist in [NORBERT_TEMPLATE_REVIEW.md](NORBERT_TEMPLATE_REVIEW.md) dokumentiert: geprüfte Originalquellen, korrigierter KRITIS-Link, eigene Themenplanung nur für diese Vorlage und begrenzte grammatische Varianten. Ein begrenzter echter Test der Standardliste mit Ziel 700 erreichte nach zwei Anfragen 718 Wörter und 38/38 Links; die Inhaltsprüfung fand weiterhin Mängel. Das ist keine Inhaltsfreigabe und kein Windows-Nachweis. Die zweite Vorlage muss in der neuen Windows-Testversion erneut geprüft werden. Vorläufig ist die vom Nutzer erfolgreich getestete erste Vorlage mit Ziel 800 der empfohlene Weg.
+
+Fehlgeschlagene Generierungen zeigen die Namen der fehlenden Linktexte und speichern die beste abgelehnte Fassung samt tatsächlichen Eingaben, Modellen und Korrekturgründen lokal unter diagnostics/. Keine Schlüssel oder .env; SDK-Fehlertexte werden nicht gespeichert. Diagnosen bleiben außerhalb von Git, EXE und ZIP und sind keine erfolgreichen Artikel.
+
 ## Konfiguration
 
 Die Testversion verwendet OPENAI_MODEL=gpt-4.1. Die Oberfläche zeigt das konfigurierte Modell. Eine alte .env oder eine geerbte Prozessvariable OPENAI_MODEL=gpt-4 kann weiterhin gpt-4 wählen; bereits gesetzte Prozessvariablen haben Vorrang vor .env. Nach Änderungen neu starten.

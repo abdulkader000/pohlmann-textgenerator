@@ -32,6 +32,13 @@ das Limit geprüft werden. Sie müssen das Programm nicht neu installieren.
 Wenn ein fehlender oder ungültiger Zugang gemeldet wird:
 Bitte die zuständige Person informieren; diese richtet die Konfiguration ein.
 
+Bei einem abgelehnten Artikel werden fehlende Linktexte mit Namen angezeigt.
+Zur lokalen Prüfung werden Eingaben, Korrekturgründe und die beste abgelehnte
+Fassung im Ordner „diagnostics“ neben dem Programm gespeichert. Diese Fassung
+ist kein fertiger Artikel. Der Schlüssel wird nicht gespeichert. Diagnoseordner
+bleiben lokal und gehören nicht in die Weitergabe-ZIP. Bei fehlenden Schreibrechten
+wird gemeldet, dass die Diagnose nicht gespeichert werden konnte.
+
 Die Datei .env gehört zum Programm und muss im gleichen Ordner bleiben.
 Die Liefer-ZIP enthält darin nur einen Platzhalter. Die zuständige Person
 trägt den lokal bereitgestellten API-Schlüssel ausschließlich vor Ort in .env

@@ -17,6 +17,7 @@ __pycache__/
 
 # Generated articles, builds and downloaded artifacts.
 outputs/
+diagnostics/
 # Local experiments and saved model responses are not part of the test build.
 experiments/
 tests/fixtures/

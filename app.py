@@ -1,5 +1,6 @@
 import argparse
 import datetime
+from dataclasses import asdict
 import json
 import os
 from pathlib import Path
@@ -14,12 +15,14 @@ from flask import Flask, render_template, request, send_from_directory, abort
 from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
 from werkzeug.serving import make_server
 
-from text_engine import generate_article, parse_pairs, render_text, word_count, pending_link_issues
+from text_engine import (ArticleDraft, ArticleGenerationError, generate_article, parse_pairs,
+                         render_text, word_count, pending_link_issues)
 
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 RESOURCE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 load_dotenv(APP_DIR / '.env')
 OUTPUT_DIR = APP_DIR / 'outputs'
+DIAGNOSTIC_DIR = APP_DIR / 'diagnostics'
 site_data = json.loads((RESOURCE_DIR / 'site_data.json').read_text(encoding='utf-8'))
 app = Flask(__name__, template_folder=str(RESOURCE_DIR / 'templates'))
 app.config['MAX_CONTENT_LENGTH'] = 100_000
@@ -33,12 +36,47 @@ def demo_article(pairs, target):
     return intro + ' '.join((sentence * target).split()[:max(0, target - word_count(intro))])
 
 
+def save_generation_failure(state, pairs, model, drafts, attempts, error, key):
+    """Local failure evidence only: explicit fields, no environment or SDK exception dump."""
+    best = getattr(error, 'best_draft', None) or (drafts[-1]['best'] if drafts else None)
+    report = {
+        'status': 'REJECTED_PENDING_REVIEW', 'inputs': dict(state), 'pairs': dict(pairs),
+        'requested_model': model, 'attempts': attempts,
+        'failure': {'type': type(error).__name__, 'status_code': getattr(error, 'status_code', None),
+                    'message': str(error) if isinstance(error, ArticleGenerationError) else 'API request failed'},
+        'best_draft': asdict(best) if best is not None else None,
+        'drafts': [{name: asdict(value) if isinstance(value, ArticleDraft) else value
+                    for name, value in record.items()} for record in drafts],
+    }
+
+    def redact(value):
+        if isinstance(value, str):
+            return value.replace(key, '[REDACTED_API_KEY]') if key else value
+        if isinstance(value, dict):
+            return {redact(name): redact(item) for name, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [redact(item) for item in value]
+        return value
+
+    folder = DIAGNOSTIC_DIR / (datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8])
+    folder.mkdir(parents=True, exist_ok=False)
+    (folder / 'report.json').write_text(json.dumps(redact(report), ensure_ascii=False, indent=2), encoding='utf-8')
+    if best is not None:
+        (folder / 'REJECTED_BEST.txt').write_text(redact(best.text), encoding='utf-8')
+        document = ('<!doctype html><html lang="de"><meta charset="utf-8"><title>Abgelehnter Entwurf</title>'
+                    '<body><p>Abgelehnter Entwurf – unvollständig, nicht zur Veröffentlichung freigegeben.</p>'
+                    '<article>' + best.rendered + '</article></body></html>')
+        (folder / 'REJECTED_BEST.html').write_text(redact(document), encoding='utf-8')
+    return folder
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     state = dict(site='custom', custom_site_name='', topic='Cybersicherheit', words='800', pairs='')
     model = os.getenv('OPENAI_MODEL', 'gpt-4.1')
     result, filename, count, error = None, None, None, None
     pending = {}
+    diagnostic_folder, diagnostic_error, failed_best = None, False, None
     if request.method == 'POST':
         state.update({key: request.form.get(key, state[key]) for key in state})
         try:
@@ -61,9 +99,25 @@ def index():
                 if not key or key == 'YOUR_API_KEY_HERE':
                     raise ValueError('Der Zugang ist noch nicht eingerichtet. Bitte die zuständige Person bitten, den API-Schlüssel in der Konfigurationsdatei neben dem Programm einzutragen.')
                 client = OpenAI(api_key=key, timeout=120, max_retries=0)
-                result, text, count = generate_article(
-                    client, model, pairs, state['topic'].strip(), target,
-                    on_attempt=app.config.get('GENERATION_OBSERVER'))
+                drafts, attempts = [], []
+
+                def observe(record):
+                    attempts.append(record)
+                    observer = app.config.get('GENERATION_OBSERVER')
+                    if observer is not None:
+                        observer(record)
+
+                try:
+                    result, text, count = generate_article(
+                        client, model, pairs, state['topic'].strip(), target,
+                        template=state['site'], on_attempt=observe, on_draft=drafts.append)
+                except (ValueError, APIError) as exc:
+                    failed_best = getattr(exc, 'best_draft', None) or (drafts[-1]['best'] if drafts else None)
+                    try:
+                        diagnostic_folder = save_generation_failure(state, pairs, model, drafts, attempts, exc, key)
+                    except OSError:
+                        diagnostic_error = True
+                    raise
             label = state['custom_site_name'] if state['site'] == 'custom' else state['site']
             label = re.sub(r'[^\w-]+', '_', label or 'Artikel')[:70]
             suffix = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8]
@@ -96,6 +150,12 @@ def index():
         except OSError:
             error = 'Die Ergebnisdateien konnten nicht gespeichert werden. Bitte Schreibrechte im Programmordner prüfen.'
         if error:
+            if failed_best is not None and failed_best.missing and 'Fehlende Linktexte:' not in error:
+                error += ' Fehlende Linktexte: ' + ', '.join(failed_best.missing) + '.'
+            if diagnostic_folder is not None:
+                error += ' Diagnose lokal gespeichert: diagnostics/' + diagnostic_folder.name + '.'
+            elif diagnostic_error:
+                error += ' Die lokale Diagnose konnte nicht gespeichert werden; Schreibrechte prüfen.'
             result, filename = None, None
     return render_template('index.html', state=state, sites=site_data, site_data=site_data,
                            pending_issues=pending,

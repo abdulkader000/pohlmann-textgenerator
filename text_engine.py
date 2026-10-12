@@ -77,6 +77,17 @@ LINK_VARIANTS = {
     'Backup': ('Backups',),
     'IT-Sicherheitsspiele': ('IT-Sicherheitsspiel', 'IT-Sicherheitsspiels', 'IT-Sicherheitsspielen'),
     'Hardware-Sicherheitsmodul': ('Hardware-Sicherheitsmoduls', 'Hardware-Sicherheitsmodule', 'Hardware-Sicherheitsmodulen'),
+    'Risiko': ('Risiken', 'Risikos'),
+    'Künstliche Intelligenz': ('Künstlicher Intelligenz', 'Künstlichen Intelligenz'),
+    'Kritische Infrastruktur': ('Kritischen Infrastruktur', 'Kritischer Infrastruktur',
+                               'Kritische Infrastrukturen', 'Kritischen Infrastrukturen', 'Kritischer Infrastrukturen'),
+    'Angriffsvektor': ('Angriffsvektoren', 'Angriffsvektors'),
+    'Firewall': ('Firewalls',),
+    'Passwörter': ('Passwort', 'Passworts', 'Passwörtern'),
+    'Schwachstellen': ('Schwachstelle',),
+    'Filterblasen': ('Filterblase',),
+    'HSM': ('HSMs',),
+    'TPM': ('TPMs',),
 }
 PENDING_LINK_ISSUES = {
     'IT-Sicherheitszahler': 'Dokumentierter Schreibfehler; die offizielle Bezeichnung ist IT-Sicherheitszahlen. Bitte die eigene Linkliste prüfen.',
@@ -115,27 +126,56 @@ ARTICLE_TOPICS = (
     ('Training und Austausch', ('Security Awareness', 'IT-Sicherheitsspiele', 'Serious Games Cybersecurity', 'IT-Sicherheitsforum'), 100),
 )
 
+POHLMANN_TEMPLATE = 'Webseite Norbert Pohlmann'
+POHLMANN_TOPICS = (
+    ('Sicherheitsmanagement: Schutzbedarf kritischer Infrastruktur, Risiken und wirtschaftliche Abwägungen',
+     ('Kritische Infrastruktur', 'Risiko', 'ISO 27001', 'ISMS', 'Grundschutz', 'Return on Security Investment'), 105),
+    ('Angriffe: Täuschung und Schadsoftware unterscheiden, menschliche und technische Angriffspfade erklären',
+     ('Spoofing', 'Social Engineering', 'Spam', 'Phishing', 'Malware', 'Ransomware', 'Angriffsvektor'), 115),
+    ('Schwachstellen und Lagebild: Softwarebestand erfassen, Schwachstellen priorisieren und Hinweise auswerten',
+     ('Schwachstellen', 'Schwachstellenmanagement', 'Software Bill of Materials', 'Threat Intelligence', 'OSINT'), 100),
+    ('Technische Schutzschichten: Identität, Netzverkehr, verschlüsselte Verbindungen und Schlüssel getrennt erklären',
+     ('Passwörter', 'Authentifikation', 'CAPTCHA', 'Firewall', 'Zero Trust', 'TLS', 'RSA', 'HSM', 'TPM'), 155),
+    ('Wissen und digitale Gesellschaft: Privatsphäre, Informationsauswahl und Grenzen neuer Technologien einordnen',
+     ('Privatsphäre', 'Filterblasen', 'Künstliche Intelligenz', 'Singularität', 'Blockchain', 'Pohlmann', 'Lehrbuch Cyber-Sicherheit'), 105),
+)
 
-def _canonical_label(key):
-    for canonical in ('IT-Sicherheit', 'Cybersecurity', *(key for _, keys, _ in ARTICLE_TOPICS for key in keys)):
+# Context verified against the original pages; sources and URL correction are in NORBERT_TEMPLATE_REVIEW.md.
+POHLMANN_CONTEXT = {
+    'Cybernation': 'Cybernation bezeichnet hier das Konzept einer digital souveränen Gesellschaft; keine Technologie oder Sicherheitssoftware.',
+    'Singularität': 'Singularität ist hier ein hypothetisches, umstrittenes Zukunftskonzept der KI; nicht als erreichten Zustand oder sichere Prognose darstellen.',
+    'HSM': 'Die zugeordnete HSM-Seite beschreibt ein High-Level Security Module als Hardware-Sicherheitsmodul für besonders sensible Schlüssel; keine pauschalen Schutzgarantien übernehmen.',
+    'Pohlmann': 'Pohlmann bezeichnet hier Norbert Pohlmann als Autor des Lehrbuchs; keine unbestätigten Zitate, persönlichen Empfehlungen oder aktuellen Ämter erfinden.',
+    'Lehrbuch Cyber-Sicherheit': 'Lehrbuch Cyber-Sicherheit ist ein Fachbuch von Norbert Pohlmann zum Lernen von Sicherheitsarchitekturen, Konzepten und Mechanismen; keine Zertifizierung oder Software.',
+    'Filterblasen': 'Filterblasen betreffen die Auswahl ähnlicher Informationen durch Personalisierung; nicht mit Malware oder einem Netzwerkfilter gleichsetzen.',
+}
+
+
+def _canonical_label(key, topics=ARTICLE_TOPICS, intro_labels=('IT-Sicherheit', 'Cybersecurity')):
+    for canonical in (*intro_labels, *(key for _, keys, _ in topics for key in keys)):
         if key.casefold() in {canonical.casefold(), *(form.casefold() for form in LINK_VARIANTS.get(canonical, ()))}:
             return canonical
     return None
 
 
-def article_plan(pairs, topic, target):
+def article_plan(pairs, topic, target, *, template=None):
     """Explicit known topics; custom labels are assigned without inventing their meaning."""
     keys = [key for key in pairs if key not in pending_link_issues(pairs)]
-    intro = [key for key in keys if _canonical_label(key) in ('IT-Sicherheit', 'Cybersecurity')]
-    groups = [{'name': name, 'keys': [key for key in keys if _canonical_label(key) in labels], 'weight': weight}
-              for name, labels, weight in ARTICLE_TOPICS]
-    custom = [key for key in keys if _canonical_label(key) is None]
+    topics = POHLMANN_TOPICS if template == POHLMANN_TEMPLATE else ARTICLE_TOPICS
+    intro_labels = (('Informationssicherheit', 'Cyber-Sicherheit', 'Digitalisierung', 'Cybernation')
+                    if template == POHLMANN_TEMPLATE else ('IT-Sicherheit', 'Cybersecurity'))
+    canonical = {key: _canonical_label(key, topics, intro_labels) for key in keys}
+    intro = [key for key in keys if canonical[key] in intro_labels]
+    groups = [{'name': name, 'keys': [key for key in keys if canonical[key] in labels], 'weight': weight}
+              for name, labels, weight in topics]
+    custom = [key for key in keys if canonical[key] is None]
     if custom:
         groups.append({'name': f'Einordnung der eingegebenen Begriffe zum Thema {topic!r}', 'keys': custom, 'weight': 110})
     groups = [group for group in groups if group['keys']]
     introduction, conclusion = round(target * .1), round(target * .075)
     body = target - introduction - conclusion
-    count = max(2, min(6, round(body / 110)))
+    count = (max(2, len(groups)) if template == POHLMANN_TEMPLATE
+             else max(2, min(6, round(body / 110))))
     while len(groups) < count and any(len(group['keys']) > 1 for group in groups):
         index = max(range(len(groups)), key=lambda i: len(groups[i]['keys']))
         group = groups[index]
@@ -161,7 +201,7 @@ def article_plan(pairs, topic, target):
             [{'name': 'Schlussfolgerung', 'keys': [], 'words': conclusion}])
 
 
-def _content_instructions(pairs):
+def _content_instructions(pairs, template=None):
     labels = {_canonical_label(key) for key in pairs}
     instructions = []
     if labels & {'Personenzertifikate', 'Unternehmenszertifikate', 'Produktzertifikate'}:
@@ -203,10 +243,15 @@ def _content_instructions(pairs):
         instructions.append('IT-Sicherheitszahlen bezeichnet Statistiken und Kennzahlen zur Cybersicherheit, kein Produkt oder Analysetool.')
     if labels & {'SOC', 'Security Operations Center'}:
         instructions.append('Stelle ein SOC nicht als notwendig für jede Organisation dar; Überwachungsmaßnahmen hängen vom Bedarf und den Ressourcen ab.')
+    if template == POHLMANN_TEMPLATE:
+        labels = {_canonical_label(key, POHLMANN_TOPICS,
+                                  ('Informationssicherheit', 'Cyber-Sicherheit', 'Digitalisierung', 'Cybernation'))
+                  for key in pairs}
+        instructions.extend(value for key, value in POHLMANN_CONTEXT.items() if key in labels)
     return ' '.join(instructions)
 
 
-def generation_prompt(pairs, topic, target, plan):
+def generation_prompt(pairs, topic, target, plan, *, template=None):
     forms = writing_link_forms(pairs)
     pending = pending_link_issues(pairs)
     forms = {key: values for key, values in forms.items() if key not in pending}
@@ -236,7 +281,7 @@ def generation_prompt(pairs, topic, target, plan):
                'Erfinde keine Eigenschaften, Veranstaltungen, Reichweite oder Leistungen genannter Foren, Produkte oder Dienste. '
                'Die Linkbezeichnungen allein belegen solche Eigenschaften nicht. '
                'Keine Wiederholungen, angehängte Linkliste, HTML oder Markdown. '
-               'Diese Inhaltsvorgaben ersetzen keine menschliche Prüfung. ' + _content_instructions(pairs) +
+               'Diese Inhaltsvorgaben ersetzen keine menschliche Prüfung. ' + _content_instructions(pairs, template) +
                ' Prüfe vor der Ausgabe intern die Abdeckung aller Pflichtbegriffe und den Wortumfang. '
                'Gib ausschließlich den fertigen Artikel aus, keine Diagnose oder Planung. '
                'Freigegebene Schreibformen: ' + json.dumps(forms, ensure_ascii=False) + '\nVariations-ID: ' + secrets.token_hex(8))
@@ -287,6 +332,8 @@ class ArticleDraft:
 
 class ArticleGenerationError(ValueError):
     def __init__(self, message, best_draft):
+        if best_draft.missing:
+            message += ' Fehlende Linktexte: ' + ', '.join(best_draft.missing) + '.'
         super().__init__(message)
         self.best_draft = best_draft
 
@@ -503,15 +550,15 @@ def _merge_paragraph_patch(raw_text, draft, pairs, options, insert):
     return ''.join(chunks), replacement
 
 
-def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on_draft=None, max_attempts=3):
+def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on_draft=None, max_attempts=3, template=None):
     # Acceptance tolerance only; keep the existing writing prompt unchanged.
     lower, upper = math.ceil(target * .875), math.floor(target * 1.125)
     if max_attempts not in (1, 2, 3):
         raise ValueError('Maximal drei Versuche pro Artikel.')
     forms = writing_link_forms(pairs)
     pending = pending_link_issues(pairs)
-    plan = article_plan(pairs, topic, target)
-    prompt = generation_prompt(pairs, topic, target, plan)
+    plan = article_plan(pairs, topic, target, template=template)
+    prompt = generation_prompt(pairs, topic, target, plan, template=template)
     initial = [{'role': 'system', 'content': 'Du schreibst sachliche, abwechslungsreiche deutsche Artikel.'},
                {'role': 'user', 'content': prompt}]
     messages = initial
@@ -605,7 +652,7 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
                     'Erhalte alle bereits vorhandenen Linktexte in jeder geänderten Passage; '
                     'freigegebene grammatische Formen sind gleichwertig. '
                     'Die Inhalts- und Sprachvorgaben der ursprünglichen Schreibplanung gelten weiterhin. '
-                    + _content_instructions(pairs) + ' ' +
+                    + _content_instructions(pairs, template) + ' ' +
                     'Bei Unterlänge vertiefe diese Themen mit nützlicher Erklärung und ausdrücklich hypothetischen Beispielen. '
                     'Verteile die Ergänzungen nach den angegebenen Einzelbudgets; nicht den gesamten Fehlbetrag in eine Passage schreiben. '
                     'Beispiele nicht als tatsächlich geschehene Ereignisse darstellen; keine erfundenen Quellen oder unbelegten Trendaussagen. '

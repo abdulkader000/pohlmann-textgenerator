@@ -24,6 +24,9 @@ class WindowsBuildTests(unittest.TestCase):
             (release / '.env').write_text('OPENAI_API_KEY=NOT_A_REAL_KEY\n')
             (release / 'old-output.html').write_text('old result')
             (release / 'source.py').write_text('old source')
+            for folder in (root / 'diagnostics', release / 'diagnostics'):
+                folder.mkdir()
+                (folder / 'report.json').write_text('{"status":"REJECTED_PENDING_REVIEW"}', encoding='utf-8')
             with patch.object(build, 'ROOT', root):
                 archive = build.package_release()
             with zipfile.ZipFile(archive) as z:
