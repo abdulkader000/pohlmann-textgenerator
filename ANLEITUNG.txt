@@ -10,7 +10,12 @@ nicht für die Lieferung freigegeben. Die EXE muss auf Windows getestet werden.
 3. Thema eingeben, Zielwortzahl bei 800 lassen und Linkliste einfügen.
    Die Wortzahl ist ungefähr: Bei Ziel 800 sind auch 700, 935 oder 1000
    Wörter speicherbar. Unter 700 erscheint ein Hinweis, kein Download-Verbot.
-   Für andere Ziele gilt der Hinweis unter 87,5 % des Ziels. Es wird nichts
+   Unter 87,5 % des Ziels versucht das Programm einmal, passende Absätze
+   mit nützlichen Erklärungen und Beispielen bis ungefähr zum Ziel zu erweitern.
+   Fehlende Links können im selben Schritt ergänzt werden. Schlägt diese
+   Erweiterung fehl, bleibt die beste Fassung mit Hinweis herunterladbar.
+   Insgesamt höchstens drei Anfragen. Zu lange Texte werden nicht gekürzt.
+   Für andere Ziele gilt dieselbe Schwelle. Es wird nichts
    abgeschnitten. Vollständig ist die Linkabdeckung erst, wenn alle eingegebenen
    Linktexte korrekt mit ihren URLs verlinkt sind.
    Eine Zeile pro Link, zum Beispiel:

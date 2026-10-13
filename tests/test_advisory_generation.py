@@ -63,8 +63,9 @@ class AdvisoryGenerationTests(unittest.TestCase):
             for words in (700, 935, 1000, 699):
                 with self.subTest(site=site, words=words), tempfile.TemporaryDirectory() as temp:
                     source = sample(pairs, site, words)
-                    page, files, calls = self.post(temp, pairs, site, [reply(source)])
-                    self.assertEqual(len(calls), 1)
+                    responses = [reply(source), reply('{invalid expansion}')] if words < 700 else [reply(source)]
+                    page, files, calls = self.post(temp, pairs, site, responses)
+                    self.assertEqual(len(calls), 2 if words < 700 else 1)
                     self.assertIn('alle eingegebenen Linktexte verlinkt', page)
                     self.assertEqual('kürzer als gewünscht' in page, words < 700)
                     self.assertFalse((Path(temp) / 'diagnostics').exists())

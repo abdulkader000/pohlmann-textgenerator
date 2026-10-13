@@ -152,7 +152,7 @@ def index():
                 error += ' Die lokale Diagnose konnte nicht gespeichert werden; Schreibrechte prüfen.'
             if failed_best is not None:
                 result, text, count = failed_best.rendered, failed_best.text, failed_best.words
-                incomplete, missing = True, list(failed_best.missing)
+                incomplete, missing = bool(failed_best.missing), list(failed_best.missing)
         if result is not None and text is not None:
             if count < math.ceil(target * .875):
                 length_notice = (f'Der Entwurf ist kürzer als gewünscht: {count} Wörter bei einem ungefähren Ziel von {target}. '

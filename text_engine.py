@@ -3,6 +3,7 @@ import csv
 from dataclasses import dataclass
 import html
 import json
+import math
 import re
 import secrets
 from urllib.parse import urlsplit
@@ -396,20 +397,21 @@ def assess_article(text, pairs, finish_reason='stop'):
     return ArticleDraft(text, rendered, word_count(text), tuple(missing), problems, finish_reason)
 
 
-def draft_rejection_reasons(previous, candidate):
+def draft_rejection_reasons(previous, candidate, *, expand=False):
     reasons = []
     if set(candidate.missing) - set(previous.missing):
         reasons.append('lost_linktexts')
     if any(count > previous.problems.get(name, 0) for name, count in candidate.problems.items()):
         reasons.append('new_or_worse_problem')
     improved = (len(candidate.missing) < len(previous.missing) or
-                sum(candidate.problems.values()) < sum(previous.problems.values()))
+                sum(candidate.problems.values()) < sum(previous.problems.values()) or
+                (expand and candidate.words > previous.words))
     if not improved:
         reasons.append('no_measurable_improvement')
     return reasons
 
 
-def _repair_options(draft, pairs, target, plan=None):
+def _repair_options(draft, pairs, target, plan=None, *, expand=False):
     paragraphs = _paragraphs(draft.text) or ['']
     body = list(range(1, len(paragraphs) - 1))
     insert = not body and len(paragraphs) > 1
@@ -455,8 +457,24 @@ def _repair_options(draft, pairs, target, plan=None):
                 index = min(candidates, key=lambda i: (word_count(paragraphs[i]), -i))
             selected.add(index)
             assignments.setdefault(index, []).append(key)
+    shares = {}
+    if expand:
+        deficits = {i: max(1, sections[i]['words'] - word_count(paragraphs[i])) for i in body}
+        expansion = [i for i in body if sections[i]['words'] > word_count(paragraphs[i])]
+        if len(expansion) < min(2, len(body)):
+            expansion = sorted(body, key=lambda i: (deficits[i], -i), reverse=True)[:2]
+        expansion = expansion or [1 if insert else 0]
+        selected.update(expansion)
+        weights = {i: deficits.get(i, 1) for i in expansion}
+        growth = max(0, target - draft.words)
+        total = sum(weights.values())
+        shares = {i: growth * weight // total for i, weight in weights.items()}
+        remainder = growth - sum(shares.values())
+        order = sorted(weights, key=lambda i: (growth * weights[i] % total, -i), reverse=True)
+        for index in order[:remainder]:
+            shares[index] += 1
     if not selected:
-        # Used only for remaining format issues; length never selects a paragraph.
+        # Used only for remaining format issues outside the single expansion request.
         selected.add(min(candidates, key=lambda i: (word_count(paragraphs[i]), -i)))
     options = []
     for index in sorted(selected):
@@ -466,6 +484,7 @@ def _repair_options(draft, pairs, target, plan=None):
                         'topic': sections[index]['name'] if index in sections else 'Gezielte Korrektur dieser Passage',
                         'planned_words': sections[index]['words'] if index in sections else old_words,
                         'missing': assignments.get(index, []), 'existing': existing,
+                        'expansion_target_words': old_words + shares.get(index, 0) if expand else None,
                         'one_paragraph': aligned or len(selected) > 1})
     return paragraphs, options, insert
 
@@ -532,6 +551,7 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
     options, insert = None, False
     feedback = []
     operation = 'complete_article'
+    expansion_requested, expanding = False, False
     for attempt in range(max_attempts):
         try:
             response = client.chat.completions.create(model=model, messages=messages, max_completion_tokens=token_limit)
@@ -552,7 +572,7 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
             try:
                 merged, response_text = _merge_paragraph_patch(raw_text, best, pairs, options, insert)
                 candidate = assess_article(merged, pairs, choice.finish_reason)
-                reasons = draft_rejection_reasons(best, candidate)
+                reasons = draft_rejection_reasons(best, candidate, expand=expanding)
                 if not reasons:
                     best, updated = candidate, True
             except ValueError as exc:
@@ -590,7 +610,8 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
                 'completion_tokens': getattr(usage, 'completion_tokens', None),
                 'reasoning_tokens': getattr(details, 'reasoning_tokens', None),
             })
-        if accepted:
+        needs_expansion = best.words < math.ceil(target * .875) and not expansion_requested
+        if accepted and (not needs_expansion or attempt + 1 == max_attempts):
             return best.rendered, best.text, best.words
         if choice.finish_reason not in ('stop', 'length'):
             raise ArticleGenerationError('Das Modell hat keinen vollständigen Artikel geliefert.', best)
@@ -598,14 +619,21 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
             raise ArticleGenerationError('Ungeklärte Linktexte bleiben offen: ' + ', '.join(best.missing) +
                                          '. Bitte die Linkliste klären; keine automatische Umdeutung.', best)
         if attempt + 1 < max_attempts:
-            paragraphs, options, insert = _repair_options(best, pairs, target, plan)
-            operation = 'repair_paragraph'
+            expanding = needs_expansion
+            expansion_requested = expansion_requested or expanding
+            paragraphs, options, insert = _repair_options(best, pairs, target, plan, expand=expanding)
+            operation = ('expand_and_repair_paragraphs' if best.missing else 'expand_paragraphs') if expanding else 'repair_paragraph'
             feedback = reasons
             messages = initial + [
                 {'role': 'assistant', 'content': best.text},
                 {'role': 'user', 'content': (
                     f'Die beste beibehaltene Fassung hat {best.words} Wörter; Schreibziel ungefähr {target}. '
-                    'Die Länge ist kein Annahmekriterium. Korrigiere die fehlenden Links, nicht die Wortzahl. ' +
+                    'Die Länge ist kein Annahmekriterium. ' +
+                    (f'Dies ist die einzige Erweiterungsanfrage. Entwickle die ausgewählten Themen bis ungefähr {target} Wörter im gesamten Artikel. '
+                     'Verteile die Ergänzungen nach den angegebenen Passagebudgets: nützliche Erklärungen, Zusammenhänge und klar hypothetische Beispiele. '
+                     'Bewahre akzeptierte Inhalte und ergänze sie; kein Fülltext, keine Wiederholung und keine angehängte Linkliste. '
+                     'Integriere zugleich die hier zugeordneten fehlenden Linktexte. ' if expanding else
+                     'Korrigiere die fehlenden Links, nicht die Wortzahl. ') +
                     f'Fehlende geklärte Linktexte mit erlaubten Formen: {json.dumps({key: forms[key] for key in best.missing if key not in pending}, ensure_ascii=False)}. '
                     f'Letzte verworfene Änderung: {json.dumps(feedback, ensure_ascii=False)}. '
                     'Korrigiere ausschließlich Absatz ' + ', '.join(str(option['paragraph_index'] + 1) for option in options) +
@@ -616,7 +644,7 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
                     + _content_instructions(pairs, template) + ' ' +
                     'Integriere die zugeordneten fehlenden Begriffe mit unmittelbar nötigen Anpassungen der umgebenden Sätze. '
                     'Bewahre die bestehenden Inhalte und ihre verlinkbaren Schreibformen; nötige Mehrwörter sind erlaubt. '
-                    'Keine pauschale Erweiterung oder Kürzung; keine neuen Behauptungen, Einleitung, Schlussfolgerung oder Wiederholungen. '
+                    'Keine Kürzung oder neuen unbelegten Behauptungen; keine neue Einleitung, Schlussfolgerung oder Wiederholungen. '
                     'Kein Erstens/Zweitens oder erster/zweiter Aspekt. '
                     'Verwende die freigegebenen Formen als eigenständige Begriffe. Nicht freigegebene Bindestrich-Zusammensetzungen '
                     'oder längere Wörter zählen nicht als Ersatz; die bloße Zeichenfolge innerhalb eines anderen Ausdrucks genügt nicht. '
@@ -630,6 +658,8 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
                     '\n' + '\n\n'.join(
                         f'Passage {option["paragraph_index"] + 1}; Thema: {option["topic"]}; '
                         f'ursprüngliches Planbudget etwa {option["planned_words"]} Wörter; '
+                        + (f'Erweiterungsziel für diese Passage etwa {option["expansion_target_words"]} Wörter; '
+                           if expanding else '') +
                         'hier fehlende Begriffe: ' + ', '.join(option['missing']) + '.\n' +
                         'Hier bereits verlinkte Begriffe mit zulässigen Formen erhalten: ' +
                         json.dumps({key: forms[key] for key in option['existing']}, ensure_ascii=False) + '\n' +

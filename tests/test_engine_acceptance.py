@@ -103,13 +103,14 @@ class EngineAcceptanceTests(unittest.TestCase):
         self.assertIn('DORA-', approved_link_forms(TEMPLATE)['DORA'])
         self.assertNotIn('DORA-', writing_link_forms(TEMPLATE)['DORA'])
 
-    def test_675_complete_article_returns_without_expansion(self):
+    def test_675_complete_article_keeps_original_after_one_failed_expansion(self):
         source = short_article()
         self.assertEqual(word_count(source), 675)
-        client, calls = fake_client([reply(source)])
+        client, calls = fake_client([reply(source), reply('{invalid patch}')])
         html, merged, count = generate_article(client, 'gpt-4.1', SMALL, 'Cybersicherheit', 800)
         self.assertEqual((merged, count), (source, 675))
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls), 2)
+        self.assertIn('einzige Erweiterungsanfrage', calls[1]['messages'][-1]['content'])
         self.assertEqual(render_text(merged, SMALL)[1], [])
         for url in SMALL.values():
             self.assertIn(f'href="{url}"', html)
@@ -170,7 +171,7 @@ class EngineAcceptanceTests(unittest.TestCase):
             with self.subTest(words=words):
                 source = full_article(words=words)
                 client, calls = fake_client([reply(source)])
-                html, text, count = generate_article(client, 'gpt-4.1', TEMPLATE, 'Cybersicherheit', 800)
+                html, text, count = generate_article(client, 'gpt-4.1', TEMPLATE, 'Cybersicherheit', 800, max_attempts=1)
                 self.assertEqual((text, count), (source, words))
                 self.assertEqual(len(calls), 1)
                 self.assertIn('ungefähres Schreibziel', calls[0]['messages'][-1]['content'])
@@ -193,7 +194,7 @@ class EngineAcceptanceTests(unittest.TestCase):
         for target, words in ((200, 100), (801, 1600), (1200, 500), (2000, 2100)):
             source = paragraph('IT-Sicherheit. Backup. E-Mail-Sicherheit.', words).strip()
             client, calls = fake_client([reply(source)])
-            _, text, count = generate_article(client, 'gpt-4.1', SMALL, 'Cybersicherheit', target)
+            _, text, count = generate_article(client, 'gpt-4.1', SMALL, 'Cybersicherheit', target, max_attempts=1)
             self.assertEqual((text, count), (source, words))
             self.assertEqual(len(calls), 1)
 
