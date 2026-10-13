@@ -1,22 +1,25 @@
 TEXTGENERATOR – KURZANLEITUNG
 
 TESTVERSION: Ergebnisse sind Entwürfe und brauchen eine Prüfung von Sprache
-und Inhalt vor Veröffentlichung. Wortzahl und Verlinkung werden technisch
-geprüft; das ist keine automatische Inhaltsfreigabe. Diese Version ist noch
+und Inhalt vor Veröffentlichung. Die Linkabdeckung wird technisch geprüft;
+die Wortzahl ist ein Richtwert, keine automatische Inhaltsfreigabe. Diese Version ist noch
 nicht für die Lieferung freigegeben. Die EXE muss auf Windows getestet werden.
 
 1. ZIP vollständig in einen eigenen Ordner entpacken.
 2. TextGenerator.exe doppelt anklicken. Die Oberfläche öffnet sich im Browser.
 3. Thema eingeben, Zielwortzahl bei 800 lassen und Linkliste einfügen.
-   Ziel 800: akzeptiert werden 700–900 Wörter. Für andere Zielwortzahlen
-   gilt ebenfalls ±12,5 %, auf ganze Wörter innerhalb der Grenzen begrenzt.
-   Alle eingegebenen Linktexte müssen weiterhin korrekt verlinkt sein.
+   Die Wortzahl ist ungefähr: Bei Ziel 800 sind auch 700, 935 oder 1000
+   Wörter speicherbar. Unter 700 erscheint ein Hinweis, kein Download-Verbot.
+   Für andere Ziele gilt der Hinweis unter 87,5 % des Ziels. Es wird nichts
+   abgeschnitten. Vollständig ist die Linkabdeckung erst, wenn alle eingegebenen
+   Linktexte korrekt mit ihren URLs verlinkt sind.
    Eine Zeile pro Link, zum Beispiel:
    IT-Sicherheit, https://it-sicherheit.de/
 4. „Neuen Text generieren“ anklicken und warten.
 5. Entwurf auf Sprache, fachliche Aussagen und Links prüfen. Anschließend
    „HTML herunterladen“ wählen, um die anklickbaren Links
-   zu erhalten. „Text herunterladen“ speichert den reinen Text.
+   zu erhalten. „Text herunterladen“ speichert den Text. Unvollständige
+   Entwürfe tragen auch in der TXT-Datei einen deutlichen Statushinweis.
 6. Für einen weiteren Artikel erneut generieren.
 7. Mit „Programm beenden“ die Anwendung schließen. Nur den Browser zu
    schließen beendet das Programm nicht.
@@ -32,7 +35,10 @@ das Limit geprüft werden. Sie müssen das Programm nicht neu installieren.
 Wenn ein fehlender oder ungültiger Zugang gemeldet wird:
 Bitte die zuständige Person informieren; diese richtet die Konfiguration ein.
 
-Bei einem abgelehnten Artikel werden fehlende Linktexte mit Namen angezeigt.
+Fehlen nach höchstens drei Anfragen weiterhin Links, werden ihre Namen angezeigt.
+Die beste Fassung bleibt als „Unvollständiger Entwurf“ in HTML und TXT herunterladbar.
+Sie wird nicht als vollständig ausgegeben. Eine abgebrochene Anfrage wird nicht
+mit einem anderen Modell wiederholt. Wenn bereits Text vorliegt, bleibt er erhalten.
 Zur lokalen Prüfung werden Eingaben, Korrekturgründe und die beste abgelehnte
 Fassung im Ordner „diagnostics“ neben dem Programm gespeichert. Diese Fassung
 ist kein fertiger Artikel. Der Schlüssel wird nicht gespeichert. Diagnoseordner

@@ -3,7 +3,6 @@ import csv
 from dataclasses import dataclass
 import html
 import json
-import math
 import re
 import secrets
 from urllib.parse import urlsplit
@@ -94,6 +93,8 @@ PENDING_LINK_ISSUES = {
 }
 # The suspended compound is allowed only in the observed coordination, not as a stem.
 LINK_FORM_CONTEXTS = {('DORA', 'DORA-'): r'(?=[^\S\r\n]+und[^\S\r\n]+DSA-Vorgaben(?![\w\-‐‑]))'}
+# Recognition only: link the base without changing the observed compound's text.
+LINK_COMPOUND_SUFFIXES = {'eIDAS': '-Verordnung', 'Malware': '-Anhang', 'TLS': '-geschützte'}
 
 
 def pending_link_issues(pairs):
@@ -256,12 +257,14 @@ def generation_prompt(pairs, topic, target, plan, *, template=None):
     pending = pending_link_issues(pairs)
     forms = {key: values for key, values in forms.items() if key not in pending}
     prompt = (f'Schreibe einen neuen deutschen Artikel zum Thema {topic!r}, Ziel {target} Wörter '
-              f'(verbindlich {round(target * .9)}–{round(target * 1.1)}). '
+              '(ungefähres Schreibziel, keine Annahmegrenze). '
               f'Schreibe genau {len(plan)} zusammenhängende Fließtextabsätze, ohne Titel, Überschriften oder Absatznummern. '
               'Gezählt wird ausschließlich der Artikelkörper. Integriere alle '
               f'{len(forms)} geklärten Pflichtbegriffe mindestens einmal in der zugeordneten Passage, '
               'in einer grammatisch vollständigen freigegebenen Schreibform. '
               'Auch überlappende kurze Linktexte benötigen eigene passende Stellen. '
+              'Freigegebene Formen müssen eigenständig vorkommen; nicht freigegebene Bindestrich-Zusammensetzungen '
+              'und längere Wörter zählen nicht automatisch als Linktext. '
               'Die natürliche Grammatik geht vor der Grundform; keine Platzhalter und keine neuen Synonyme. '
               'Die Wortbudgets sind ungefähr; entwickle jeden Aspekt mit nützlicher Erklärung, ohne Füllsätze. '
               'Jeder Mittelteilabsatz entwickelt einen neuen konkreten Aspekt mit einem praktischen Beispiel als klar hypothetischem Szenario. '
@@ -292,15 +295,18 @@ def generation_prompt(pairs, topic, target, plan, *, template=None):
 
 
 def _link_pattern(pairs):
-    entries = sorted(((form, key) for key, forms in approved_link_forms(pairs).items() for form in forms),
-                     key=lambda entry: len(entry[0]), reverse=True)
+    entries = [(form, key, '') for key, forms in approved_link_forms(pairs).items() for form in forms]
+    suffixes = {key.casefold(): value for key, value in LINK_COMPOUND_SUFFIXES.items()}
+    entries.extend((key, key, suffixes[key.casefold()]) for key in pairs if key.casefold() in suffixes)
+    # Rank by the entire recognized phrase; an exact entered label wins a tie.
+    entries.sort(key=lambda entry: (len(entry[0]) + len(entry[2]), not entry[2]), reverse=True)
     contexts = {(key.casefold(), form.casefold()): value for (key, form), value in LINK_FORM_CONTEXTS.items()}
     alternatives = [f'(?P<link{i}>' + r'[^\S\r\n]+'.join(re.escape(part) for part in form.split()) + ')' +
-                    contexts.get((key.casefold(), form.casefold()), '')
-                    for i, (form, key) in enumerate(entries)]
-    # Whole words/phrases only; do not link a component of another hyphenated word.
-    pattern = re.compile(r'(?<![\w\-‐‑])(?:' + '|'.join(alternatives) + r')(?![\w\-‐‑])', re.IGNORECASE)
-    return pattern, [key for _, key in entries]
+                    contexts.get((key.casefold(), form.casefold()), '') +
+                    (r'(?=' + re.escape(suffix) + r'(?![\w\-‐‑]))' if suffix else r'(?![\w\-‐‑])')
+                    for i, (form, key, suffix) in enumerate(entries)]
+    pattern = re.compile(r'(?<![\w\-‐‑])(?:' + '|'.join(alternatives) + ')', re.IGNORECASE)
+    return pattern, [key for _, key, _ in entries]
 
 
 def render_text(text, pairs):
@@ -390,27 +396,20 @@ def assess_article(text, pairs, finish_reason='stop'):
     return ArticleDraft(text, rendered, word_count(text), tuple(missing), problems, finish_reason)
 
 
-def _length_gap(words, lower, upper):
-    return max(lower - words, words - upper, 0)
-
-
-def draft_rejection_reasons(previous, candidate, lower, upper):
+def draft_rejection_reasons(previous, candidate):
     reasons = []
     if set(candidate.missing) - set(previous.missing):
         reasons.append('lost_linktexts')
-    if _length_gap(candidate.words, lower, upper) > _length_gap(previous.words, lower, upper):
-        reasons.append('worse_word_range')
     if any(count > previous.problems.get(name, 0) for name, count in candidate.problems.items()):
         reasons.append('new_or_worse_problem')
     improved = (len(candidate.missing) < len(previous.missing) or
-                _length_gap(candidate.words, lower, upper) < _length_gap(previous.words, lower, upper) or
                 sum(candidate.problems.values()) < sum(previous.problems.values()))
     if not improved:
         reasons.append('no_measurable_improvement')
     return reasons
 
 
-def _repair_options(draft, pairs, lower, upper, target, plan=None):
+def _repair_options(draft, pairs, target, plan=None):
     paragraphs = _paragraphs(draft.text) or ['']
     body = list(range(1, len(paragraphs) - 1))
     insert = not body and len(paragraphs) > 1
@@ -439,7 +438,6 @@ def _repair_options(draft, pairs, lower, upper, target, plan=None):
         selected.add(1)
         assignments[1] = [key for key in draft.missing if key not in pending_link_issues(pairs)]
     if not insert:
-        selected.update(i for i in body if _body_structure_problems(paragraphs[i]))
         for key in draft.missing:
             if key in pending_link_issues(pairs):
                 continue
@@ -457,49 +455,18 @@ def _repair_options(draft, pairs, lower, upper, target, plan=None):
                 index = min(candidates, key=lambda i: (word_count(paragraphs[i]), -i))
             selected.add(index)
             assignments.setdefault(index, []).append(key)
-    growth_weights = {}
-    if draft.words < lower and body and not insert:
-        deficits = {i: sections[i]['words'] - word_count(paragraphs[i]) for i in body}
-        expansion = [i for i in body if deficits[i] > 0]
-        if len(expansion) < min(2, len(body)):
-            expansion = sorted(body, key=lambda i: (deficits[i], -i), reverse=True)[:2]
-        selected.update(expansion)
-        growth_weights = {i: max(1, deficits[i]) for i in expansion}
     if not selected:
-        if draft.words > upper:
-            index = max(candidates, key=lambda i: word_count(paragraphs[i]))
-        elif aligned:
-            index = max(candidates, key=lambda i: plan[i]['words'] - word_count(paragraphs[i]))
-        else:
-            index = min(candidates, key=lambda i: (word_count(paragraphs[i]), -i))
-        selected.add(index)
+        # Used only for remaining format issues; length never selects a paragraph.
+        selected.add(min(candidates, key=lambda i: (word_count(paragraphs[i]), -i)))
     options = []
-    change = target - draft.words if not lower <= draft.words <= upper else 0
-    indices = sorted(selected)
-    old_total = sum(0 if insert else word_count(paragraphs[i]) for i in indices)
-    other_words = draft.words - old_total
-    if change > 0:
-        weights = growth_weights or {i: 1 for i in indices}
-        total = sum(weights.values())
-        shares = {i: change * weights.get(i, 0) // total for i in indices}
-        # Largest remainders preserve the exact total without concentrating rounding in the last paragraph.
-        remaining = change - sum(shares.values())
-        order = sorted(weights, key=lambda i: (change * weights[i] % total, -i), reverse=True)
-        for index in order[:remaining]:
-            shares[index] += 1
-    else:
-        shares = {i: round(change / len(indices)) for i in indices}
-        shares[indices[-1]] += change - sum(shares.values())
-    for index in indices:
+    for index in sorted(selected):
         old_words = 0 if insert else word_count(paragraphs[index])
+        existing = sorted(coverage[index]) if not insert else []
         options.append({'paragraph_index': index, 'current_words': old_words,
                         'topic': sections[index]['name'] if index in sections else 'Gezielte Korrektur dieser Passage',
                         'planned_words': sections[index]['words'] if index in sections else old_words,
-                        'missing': assignments.get(index, []),
-                        'one_paragraph': aligned or len(indices) > 1,
-                        'replacement_min_words': max(1, lower - other_words),
-                        'replacement_max_words': max(1, upper - other_words),
-                        'replacement_target_words': max(1, old_words + shares[index])})
+                        'missing': assignments.get(index, []), 'existing': existing,
+                        'one_paragraph': aligned or len(selected) > 1})
     return paragraphs, options, insert
 
 
@@ -534,10 +501,6 @@ def _merge_paragraph_patch(raw_text, draft, pairs, options, insert):
                 structure.pop('numbered_body', None)
             if structure:
                 raise ValueError('invalid_body_structure')
-        _, old_missing = render_text(old, pairs)
-        _, new_missing = render_text(new, pairs)
-        if set(new_missing) - set(old_missing):
-            raise ValueError('paragraph_lost_linktexts')
         if draft.finish_reason == 'length' and index == len(paragraphs) - 1 and not re.search(r'[.!?][”"\x27]?\s*$', new):
             raise ValueError('unfinished_tail')
         if insert:
@@ -547,12 +510,14 @@ def _merge_paragraph_patch(raw_text, draft, pairs, options, insert):
             leading = original[:len(original) - len(original.lstrip())]
             trailing = original[len(original.rstrip()):]
             chunks[index * 2] = leading + new + trailing
-    return ''.join(chunks), replacement
+    merged = ''.join(chunks)
+    # Links may move inside edited passages; every previously covered URL must survive globally.
+    if set(render_text(merged, pairs)[1]) - set(draft.missing):
+        raise ValueError('lost_linktexts')
+    return merged, replacement
 
 
 def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on_draft=None, max_attempts=3, template=None):
-    # Acceptance tolerance only; keep the existing writing prompt unchanged.
-    lower, upper = math.ceil(target * .875), math.floor(target * 1.125)
     if max_attempts not in (1, 2, 3):
         raise ValueError('Maximal drei Versuche pro Artikel.')
     forms = writing_link_forms(pairs)
@@ -587,18 +552,17 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
             try:
                 merged, response_text = _merge_paragraph_patch(raw_text, best, pairs, options, insert)
                 candidate = assess_article(merged, pairs, choice.finish_reason)
-                reasons = draft_rejection_reasons(best, candidate, lower, upper)
+                reasons = draft_rejection_reasons(best, candidate)
                 if not reasons:
                     best, updated = candidate, True
             except ValueError as exc:
                 code = str(exc)
                 safe_codes = {'invalid_plain_text_patch', 'repeated_protected_paragraph',
-                              'paragraph_lost_linktexts', 'unfinished_tail', 'invalid_body_structure', 'wrong_paragraph_count'}
+                              'lost_linktexts', 'unfinished_tail', 'invalid_body_structure', 'wrong_paragraph_count'}
                 reasons = [code] if code in safe_codes else ['invalid_or_unsafe_paragraph_patch']
             except (TypeError, KeyError):
                 reasons = ['invalid_or_unsafe_paragraph_patch']
-        accepted = (best.finish_reason == 'stop' and lower <= best.words <= upper and
-                    not best.missing and not best.problems)
+        accepted = not best.missing  # Link completeness; length and quality are separate notices.
         if on_draft is not None:
             # Explicit diagnostic hook only; normal generation writes no response log.
             on_draft({'attempt': attempt + 1, 'raw_response': raw_text,
@@ -630,21 +594,18 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
             return best.rendered, best.text, best.words
         if choice.finish_reason not in ('stop', 'length'):
             raise ArticleGenerationError('Das Modell hat keinen vollständigen Artikel geliefert.', best)
-        if (lower <= best.words <= upper and not best.problems and best.missing and
-                set(best.missing) <= set(pending)):
+        if best.missing and set(best.missing) <= set(pending):
             raise ArticleGenerationError('Ungeklärte Linktexte bleiben offen: ' + ', '.join(best.missing) +
                                          '. Bitte die Linkliste klären; keine automatische Umdeutung.', best)
         if attempt + 1 < max_attempts:
-            paragraphs, options, insert = _repair_options(best, pairs, lower, upper, target, plan)
-            operation = ('expand_paragraph' if best.words < lower else
-                         'shorten_paragraph' if best.words > upper else 'repair_paragraph')
+            paragraphs, options, insert = _repair_options(best, pairs, target, plan)
+            operation = 'repair_paragraph'
             feedback = reasons
             messages = initial + [
                 {'role': 'assistant', 'content': best.text},
                 {'role': 'user', 'content': (
-                    f'Die beste beibehaltene Fassung hat {best.words} Wörter; Ziel {target}, erlaubt {lower}–{upper}. '
-                    + (f'Zum Ziel fehlen {target - best.words} Wörter; ergänze mindestens {lower - best.words}. '
-                       if best.words < lower else '') +
+                    f'Die beste beibehaltene Fassung hat {best.words} Wörter; Schreibziel ungefähr {target}. '
+                    'Die Länge ist kein Annahmekriterium. Korrigiere die fehlenden Links, nicht die Wortzahl. ' +
                     f'Fehlende geklärte Linktexte mit erlaubten Formen: {json.dumps({key: forms[key] for key in best.missing if key not in pending}, ensure_ascii=False)}. '
                     f'Letzte verworfene Änderung: {json.dumps(feedback, ensure_ascii=False)}. '
                     'Korrigiere ausschließlich Absatz ' + ', '.join(str(option['paragraph_index'] + 1) for option in options) +
@@ -653,18 +614,14 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
                     'freigegebene grammatische Formen sind gleichwertig. '
                     'Die Inhalts- und Sprachvorgaben der ursprünglichen Schreibplanung gelten weiterhin. '
                     + _content_instructions(pairs, template) + ' ' +
-                    'Bei Unterlänge vertiefe diese Themen mit nützlicher Erklärung und ausdrücklich hypothetischen Beispielen. '
-                    'Verteile die Ergänzungen nach den angegebenen Einzelbudgets; nicht den gesamten Fehlbetrag in eine Passage schreiben. '
-                    'Beispiele nicht als tatsächlich geschehene Ereignisse darstellen; keine erfundenen Quellen oder unbelegten Trendaussagen. '
-                    'Keine neue Einleitung, Schlussfolgerung oder Wiederholung; kein Erstens/Zweitens oder erster/zweiter Aspekt. '
-                    'Entferne solche Strukturmarker aus den ausgewählten Passagen. '
-                    'Bei passender Länge integriere die zugeordneten fehlenden Begriffe bei gleichem Gesamtumfang mit nur unmittelbar nötigen Anpassungen der umgebenden Sätze; '
-                    'füge dabei keine zusätzlichen Behauptungen oder Themen hinzu. '
-                    'Bei Überlänge kürze ohne Verlust bestehender Begriffe. '
+                    'Integriere die zugeordneten fehlenden Begriffe mit unmittelbar nötigen Anpassungen der umgebenden Sätze. '
+                    'Bewahre die bestehenden Inhalte und ihre verlinkbaren Schreibformen; nötige Mehrwörter sind erlaubt. '
+                    'Keine pauschale Erweiterung oder Kürzung; keine neuen Behauptungen, Einleitung, Schlussfolgerung oder Wiederholungen. '
+                    'Kein Erstens/Zweitens oder erster/zweiter Aspekt. '
+                    'Verwende die freigegebenen Formen als eigenständige Begriffe. Nicht freigegebene Bindestrich-Zusammensetzungen '
+                    'oder längere Wörter zählen nicht als Ersatz; die bloße Zeichenfolge innerhalb eines anderen Ausdrucks genügt nicht. '
                     + ('Vervollständige den letzten Absatz mit einem vollständigen Ende. '
-                       if best.finish_reason == 'length' else '') +
-                    f'Gesamtwortbudget für alle Ersatzpassagen zusammen: {options[0]["replacement_min_words"]}–'
-                    f'{options[0]["replacement_max_words"]}. '
+                       if best.finish_reason == 'length' else '')
                     + ('Der neue Absatz wird vor der Schlussfolgerung eingefügt; kein Absatz wird ersetzt. '
                        if insert else '') +
                     ('Antworte mit genau einem Absatz je ausgewählter Passage, in dieser Reihenfolge, getrennt durch eine Leerzeile. '
@@ -673,15 +630,16 @@ def generate_article(client, model, pairs, topic, target, *, on_attempt=None, on
                     '\n' + '\n\n'.join(
                         f'Passage {option["paragraph_index"] + 1}; Thema: {option["topic"]}; '
                         f'ursprüngliches Planbudget etwa {option["planned_words"]} Wörter; '
-                        f'Ersatzziel etwa {option["replacement_target_words"]} Wörter; '
                         'hier fehlende Begriffe: ' + ', '.join(option['missing']) + '.\n' +
+                        'Hier bereits verlinkte Begriffe mit zulässigen Formen erhalten: ' +
+                        json.dumps({key: forms[key] for key in option['existing']}, ensure_ascii=False) + '\n' +
                         ('' if insert else paragraphs[option['paragraph_index']]) for option in options) +
                     '\nAntworte ausschließlich mit dem vollständigen Ersatztext als normalem Text. '
                     'Kein JSON, keine Absatznummer, kein gesamter Artikel, keine Codeblöcke oder Diagnosen.'
                 )},
             ]
     raise ArticleGenerationError(
-        f'Nach {max_attempts} Versuchen kein passender Text. Beste beibehaltene Fassung: {best.words} Wörter, '
+        f'Nach {max_attempts} Versuchen sind nicht alle Linktexte verlinkt. Beste beibehaltene Fassung: {best.words} Wörter, '
         f'{len(best.missing)} fehlende Linktexte, {sum(best.problems.values())} Formatprobleme. '
         + (f'Offene Frage in der Linkliste: {", ".join(pending)}. ' if pending else '') +
-        f'Abschlussgrund: {best.finish_reason}. Es wurde keine erfolgreiche Ergebnisdatei gespeichert.', best)
+        f'Abschlussgrund: {best.finish_reason}. Die beste Fassung bleibt als unvollständiger Entwurf verfügbar.', best)

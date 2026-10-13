@@ -1,21 +1,22 @@
 # Pohlmann Textgenerator — Windows-Testversion
 
-Vorhandenes Python/Flask-Tool für deutsche Artikelentwürfe mit anklickbaren Links. Diese Version ist zum Testen bestimmt, nicht zur Lieferung oder automatischen Veröffentlichung freigegeben. Technischer Erfolg bei Wortzahl und Links ist keine Inhaltsfreigabe. Sprache und fachliche Aussagen müssen vor Veröffentlichung geprüft werden.
+Vorhandenes Python/Flask-Tool für deutsche Artikelentwürfe mit anklickbaren Links. Diese Version ist zum Testen bestimmt, nicht zur Lieferung oder automatischen Veröffentlichung freigegeben. Vollständige Linkabdeckung ist keine Inhaltsfreigabe; die Wortzahl ist ungefähr. Sprache und fachliche Aussagen müssen vor Veröffentlichung geprüft werden.
 
 ## Verhalten
 
-- Standardziel 800 Wörter, technische Annahme 700–900 (±12,5 %); weitere Ziele 200–2000 mit derselben Toleranz. Bruchteilige Untergrenzen werden aufgerundet, Obergrenzen abgerundet. Vollständige Linkabdeckung und korrekte URLs bleiben erforderlich. Schreibprompt und Zielbudgets bleiben unverändert.
+- Standardziel ungefähr 800 Wörter; weitere Schreibziele 200–2000. Die Artikellänge verhindert weder Speichern noch Download. Unter 87,5 % des Ziels erscheint ein Hinweis (bei Ziel 800: unter 700), ohne Text zu kürzen.
 - Frei editierbare Linkliste; URLs werden nicht zum Generieren abgerufen.
-- Explizite grammatische Varianten mit festen URL-Zuordnungen; strikte Wort- und Bindestrichgrenzen.
-- Themenplanung passend zu den tatsächlichen Begriffen. Korrekturen bearbeiten passende Absätze; Unterlänge wird auf mehrere Absätze verteilt. Andere Absätze und vorhandene Links bleiben geschützt. Eine schlechtere Korrektur ersetzt nicht die beste Fassung.
-- Normaler Lauf: höchstens drei Anfragen insgesamt, ohne Modell-Fallback bei API-Fehlern. Ein nicht passender Text wird nicht als erfolgreiche Ergebnisdatei gespeichert.
-- Oberfläche und HTML nennen das Ergebnis Artikelentwurf. Dateinamen beginnen mit ENTWURF_; TXT enthält nur den Artikelkörper.
+- Explizite grammatische Varianten mit festen URL-Zuordnungen; strikte Wort- und Bindestrichgrenzen sowie unabhängige Abdeckung überlappender Begriffe. In den ausdrücklich erfassten Zusammensetzungen `eIDAS-Verordnung`, `Malware-Anhang` und `TLS-geschützte` wird nur der Grundbegriff verlinkt; der sichtbare Text bleibt erhalten. Diese Erkennung erweitert nicht die Schreibformen im Modellauftrag.
+- Themenplanung passend zu den tatsächlichen Begriffen. Nur fehlende Links veranlassen gezielte Absatzkorrekturen; andere Absätze und vorhandene Links bleiben geschützt. Die Wortzahl ist kein Auswahl- oder Verbesserungsmaß für eine Korrektur. Bestehende Links mit ihren zulässigen Formen werden je Passage im Korrekturauftrag genannt.
+- Bei vollständigen Links sofort speichern, ohne Längen-Korrektur. Normaler Lauf: höchstens drei Anfragen insgesamt, bei API-Fehler sofort stoppen, kein Modell-Fallback.
+- Bleiben Links offen, erscheinen ihre Namen und die beste Fassung wird als **Unvollständiger Entwurf** herunterladbar. Nur vorhandene Begriffe werden verlinkt, keine angehängte Linkliste oder falsche Vollständigkeitsmeldung.
+- Vollständige Dateinamen beginnen mit ENTWURF_, unvollständige mit UNVOLLSTAENDIGER_ENTWURF_. HTML enthält Status und Prüfhinweise außerhalb des Artikelkörpers. Vollständige TXT bleibt reiner Artikeltext; unvollständige TXT erhält einen Statusheader vor dem unveränderten Text.
 
 Die Vorlage korrigiert den dokumentierten Schreibfehler IT-Sicherheitszahler zu IT-Sicherheitszahlen; die zugehörige URL bleibt unverändert.
 
 Die Überarbeitung der zweiten Vorlage ist in [NORBERT_TEMPLATE_REVIEW.md](NORBERT_TEMPLATE_REVIEW.md) dokumentiert: geprüfte Originalquellen, korrigierter KRITIS-Link, eigene Themenplanung nur für diese Vorlage und begrenzte grammatische Varianten. Ein begrenzter echter Test der Standardliste mit Ziel 700 erreichte nach zwei Anfragen 718 Wörter und 38/38 Links; die Inhaltsprüfung fand weiterhin Mängel. Das ist keine Inhaltsfreigabe und kein Windows-Nachweis. Die zweite Vorlage muss in der neuen Windows-Testversion erneut geprüft werden. Vorläufig ist die vom Nutzer erfolgreich getestete erste Vorlage mit Ziel 800 der empfohlene Weg.
 
-Fehlgeschlagene Generierungen zeigen die Namen der fehlenden Linktexte und speichern die beste abgelehnte Fassung samt tatsächlichen Eingaben, Modellen und Korrekturgründen lokal unter diagnostics/. Keine Schlüssel oder .env; SDK-Fehlertexte werden nicht gespeichert. Diagnosen bleiben außerhalb von Git, EXE und ZIP und sind keine erfolgreichen Artikel.
+Fehlgeschlagene Generierungen zeigen die Namen der fehlenden Linktexte und speichern die beste abgelehnte Fassung samt tatsächlichen Eingaben, Modellen und Korrekturgründen lokal unter diagnostics/. Keine Schlüssel oder .env; SDK-Fehlertexte werden nicht gespeichert. Diagnosen bleiben außerhalb von Git, EXE und ZIP. Zusätzlich bleibt die unvollständige Fassung über die normalen Downloadrouten zugänglich.
 
 ## Konfiguration
 
@@ -52,4 +53,4 @@ Die feste .env enthält YOUR_API_KEY_HERE und OPENAI_MODEL=gpt-4.1. Der Build ko
 
 [WINDOWS_TEST_CHECKLIST.md](WINDOWS_TEST_CHECKLIST.md): Start aus einem Ordner mit Leerzeichen, automatischer Browserstart, Generierung und gegebenenfalls Korrektur, Links, HTML/TXT-Downloads, Beenden und Neustart. Auch Demo prüfen. Beim echten Test API-Kosten und Testumfang vorher festlegen. Das Browserfenster allein zu schließen beendet den Prozess nicht.
 
-Der Nutzer hat die bisherige EXE auf Windows geprüft: automatischer Browserstart ohne Konsole, Beenden und Neustart sowie Speichern im Ausgabeordner funktionieren. Drei Links wurden erfolgreich generiert und im HTML geprüft. Die vollständige Vorlage wurde nach drei Versuchen mit 882 Wörtern, ohne fehlende Linktexte oder Formatprobleme, wegen der alten Obergrenze 880 abgelehnt. Die neue Toleranz akzeptiert diesen Umfang technisch; die vollständige Vorlage muss mit der neuen EXE erneut getestet werden. Lokale Mock-Tests sind kein Nachweis für die Qualität neuer Artikel; keine Weitergabe als freigegebene Version.
+Der Nutzer hat die bisherige EXE auf Windows geprüft: automatischer Browserstart ohne Konsole, Beenden und Neustart sowie Speichern im Ausgabeordner funktionieren. Drei Links wurden erfolgreich generiert und im HTML geprüft. Die vollständige Vorlage wurde nach drei Versuchen mit 882 Wörtern, ohne fehlende Linktexte oder Formatprobleme, wegen der alten Obergrenze 880 abgelehnt. Die aktuelle Version verwendet keine Längengrenze für die Annahme; die vollständige Vorlage muss mit der neuen EXE erneut getestet werden. Lokale Mock-Tests sind kein Nachweis für die Qualität neuer Artikel; keine Weitergabe als freigegebene Version.

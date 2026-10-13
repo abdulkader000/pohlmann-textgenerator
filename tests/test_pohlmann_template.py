@@ -48,7 +48,7 @@ def synthetic_article(missing=(), pairs=PAIRS):
 def replacement_for(source, pairs=PAIRS):
     draft = assess_article(source, pairs)
     plan = article_plan(pairs, 'Cybersicherheit', 700, template=POHLMANN_TEMPLATE)
-    blocks, options, insert = _repair_options(draft, pairs, 613, 787, 700, plan)
+    blocks, options, insert = _repair_options(draft, pairs, 700, plan)
     assert not insert
     replacements = [blocks[o['paragraph_index']] + ' ' + '. '.join(o['missing']) + '.' for o in options]
     return '\n\n'.join(replacements), options
@@ -131,7 +131,7 @@ class PohlmannTemplateTests(unittest.TestCase):
         source, _ = synthetic_article(MISSING)
         replacement, options = replacement_for(source)
         self.assertEqual([o['paragraph_index'] + 1 for o in options], [2, 3, 5, 6])
-        self.assertTrue(all(o['current_words'] == o['replacement_target_words'] for o in options))
+        self.assertTrue(all(o['existing'] for o in options))
         client = client_for(response(source), response(replacement))
         html, merged, count = generate_article(client, 'gpt-4.1', PAIRS, 'Cybersicherheit', 700,
                                                template=POHLMANN_TEMPLATE, max_attempts=2)
@@ -153,7 +153,7 @@ class PohlmannTemplateTests(unittest.TestCase):
         drafts = []
         _, merged, _ = generate_article(client, 'gpt-4.1', PAIRS, 'Cybersicherheit', 700,
                                         template=POHLMANN_TEMPLATE, on_draft=drafts.append)
-        self.assertIn('paragraph_lost_linktexts', drafts[1]['rejection_reasons'])
+        self.assertIn('lost_linktexts', drafts[1]['rejection_reasons'])
         self.assertFalse(drafts[1]['draft_updated'])
         self.assertEqual(drafts[1]['best'].text, source)
         third = client.chat.completions.create.call_args_list[2].kwargs
@@ -178,9 +178,11 @@ class PohlmannTemplateTests(unittest.TestCase):
             self.assertIn('Fehlende Linktexte:', page)
             for term in MISSING:
                 self.assertIn(term, page)
-            self.assertNotIn('HTML herunterladen', page)
+            self.assertIn('HTML herunterladen', page)
+            self.assertIn('Unvollständiger Entwurf', page)
+            self.assertNotIn('alle eingegebenen Linktexte verlinkt', page)
             self.assertIn('Diagnose lokal gespeichert:', page)
-            self.assertFalse((Path(temp) / 'outputs').exists())
+            self.assertEqual(len(list((Path(temp) / 'outputs').iterdir())), 2)
             folder = next((Path(temp) / 'diagnostics').iterdir())
             report = json.loads((folder / 'report.json').read_text(encoding='utf-8'))
             self.assertEqual(report['pairs'], pairs)
@@ -190,7 +192,7 @@ class PohlmannTemplateTests(unittest.TestCase):
             self.assertEqual(len(report['attempts']), 3)
             self.assertTrue(all(a['response_model'] == 'gpt-4.1-MOCK' for a in report['attempts']))
             for draft in report['drafts'][1:]:
-                self.assertIn('paragraph_lost_linktexts', draft['rejection_reasons'])
+                self.assertIn('lost_linktexts', draft['rejection_reasons'])
                 self.assertFalse(draft['draft_updated'])
             self.assertEqual((folder / 'REJECTED_BEST.txt').read_text(encoding='utf-8'), source)
             self.assertIn('nicht zur Veröffentlichung', (folder / 'REJECTED_BEST.html').read_text(encoding='utf-8'))
@@ -249,7 +251,7 @@ class PohlmannTemplateTests(unittest.TestCase):
             page = module.app.test_client().post('/', data=data).get_data(as_text=True)
             self.assertIn('Fehlende Linktexte:', page)
             self.assertIn('Die lokale Diagnose konnte nicht gespeichert werden', page)
-            self.assertEqual(list(Path(temp).iterdir()), [])
+            self.assertEqual(len(list(Path(temp).glob('UNVOLLSTAENDIGER_ENTWURF_*'))), 2)
 
 
 if __name__ == '__main__':

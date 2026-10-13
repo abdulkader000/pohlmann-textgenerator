@@ -38,7 +38,7 @@ Die eigene Themenplanung wird nur bei explizit ausgewählter Vorlage `Webseite N
 | 6 | Wissen, Privatheit, Informationsauswahl und Grenzen neuer Technologien | Singularität, Filterblasen, Pohlmann, Lehrbuch Cyber-Sicherheit, Privatsphäre, Blockchain, Künstliche Intelligenz | 104 |
 | 7 | Schlussfolgerung ohne neue Begriffe oder Behauptungen | — | 52 |
 
-Alle 38 Begriffe werden genau einmal eingeplant; die Budgets werden für andere Ziele skaliert. Die Akzeptanz bleibt ±12,5 %: Ziel 700 → 613–787 ganze Wörter; Ziel 800 → 700–900. Das bestehende engere Schreibziel im allgemeinen Prompt bleibt bestehen.
+Alle 38 Begriffe werden genau einmal eingeplant; die Budgets werden für andere Ziele skaliert. Seit 2026-10-13 ist die Wortzahl nur ein Schreibziel. Sie verhindert weder Annahme noch Download; unter 87,5 % des Ziels erscheint ein Hinweis. Vollständigkeit erfordert alle eingegebenen Links. Auch eine unvollständige Fassung bleibt deutlich gekennzeichnet herunterladbar.
 
 ## Begrenzte grammatische Varianten
 
@@ -73,4 +73,4 @@ Offline-Tests mit synthetischen Texten prüfen vier gleichzeitig fehlende Begrif
 
 Ein danach ausdrücklich genehmigter echter Lauf mit der Standardliste (38 Begriffe), Cybersicherheit, Ziel 700 und gpt-4.1 verbrauchte zwei Anfragen: zuerst 605 Wörter und 37/38 Links (Zero Trust stand nur in Zero Trust-Prinzip), nach der normalen Korrektur 718 Wörter und 38/38 Links. Die Absätze 1 und 7 blieben wörtlich erhalten; HTML- und TXT-Downloads über die Flask-Routen waren korrekt. Die Inhaltsprüfung fand unter anderem eine irreführende Grundschutz-Zusicherung, eine absolute Aussage zum Ausschluss von Stromausfällen und einen fehlerhaften Satzbau. Der Text ist deshalb nicht zur Veröffentlichung freigegeben. Das ist keine bestätigte Reproduktion von Saras Eingaben und kein Windows-Test.
 
-Dieser Build übernimmt die bereits geprüften Änderungen ohne neue API-Anfragen oder Änderungen an Prompt, Modell und Akzeptanzgrenzen. Build-Erfolg bedeutet keine Freigabe der Generierungsqualität oder des Windows-Betriebs.
+Die Windows-Testversion vom 2026-10-12 enthielt diese damaligen Änderungen. Die lokale Überarbeitung vom 2026-10-13 macht die Länge zum Richtwert und bietet unvollständige Downloads; sie ist noch nicht als EXE gebaut oder geprüft. Build-Erfolg bedeutet keine Freigabe der Generierungsqualität oder des Windows-Betriebs.

@@ -2,6 +2,8 @@ import argparse
 import datetime
 from dataclasses import asdict
 import json
+import html
+import math
 import os
 from pathlib import Path
 import re
@@ -74,7 +76,8 @@ def save_generation_failure(state, pairs, model, drafts, attempts, error, key):
 def index():
     state = dict(site='custom', custom_site_name='', topic='Cybersicherheit', words='800', pairs='')
     model = os.getenv('OPENAI_MODEL', 'gpt-4.1')
-    result, filename, count, error = None, None, None, None
+    result, text, filename, count, error = None, None, None, None, None
+    incomplete, missing, length_notice, format_notice = False, [], None, None
     pending = {}
     diagnostic_folder, diagnostic_error, failed_best = None, False, None
     if request.method == 'POST':
@@ -118,15 +121,6 @@ def index():
                     except OSError:
                         diagnostic_error = True
                     raise
-            label = state['custom_site_name'] if state['site'] == 'custom' else state['site']
-            label = re.sub(r'[^\w-]+', '_', label or 'Artikel')[:70]
-            suffix = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8]
-            filename = ('DEMO_' if app.config['DEMO_MODE'] else 'ENTWURF_') + f'{label}_{suffix}.html'
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            review_notice = '' if app.config['DEMO_MODE'] else '<p>Entwurf – Inhalt und Sprache vor Veröffentlichung prüfen. Keine automatische Inhaltsfreigabe.</p>'
-            document = '<!doctype html><html lang="de"><meta charset="utf-8"><title>Artikelentwurf</title><body>' + review_notice + '<article>' + result + '</article></body></html>'
-            (OUTPUT_DIR / filename).write_text(document, encoding='utf-8')
-            (OUTPUT_DIR / filename.replace('.html', '.txt')).write_text(text, encoding='utf-8')
         except ValueError as exc:
             error = str(exc)
             result, filename = None, None
@@ -156,9 +150,43 @@ def index():
                 error += ' Diagnose lokal gespeichert: diagnostics/' + diagnostic_folder.name + '.'
             elif diagnostic_error:
                 error += ' Die lokale Diagnose konnte nicht gespeichert werden; Schreibrechte prüfen.'
-            result, filename = None, None
+            if failed_best is not None:
+                result, text, count = failed_best.rendered, failed_best.text, failed_best.words
+                incomplete, missing = True, list(failed_best.missing)
+        if result is not None and text is not None:
+            if count < math.ceil(target * .875):
+                length_notice = (f'Der Entwurf ist kürzer als gewünscht: {count} Wörter bei einem ungefähren Ziel von {target}. '
+                                 'Der gesamte vorhandene Text bleibt herunterladbar; es wird nichts abgeschnitten.')
+            best = failed_best or (drafts[-1]['best'] if not app.config['DEMO_MODE'] and drafts else None)
+            if best is not None and best.problems:
+                format_notice = 'Ausgabehinweise: ' + ', '.join(best.problems) + '. Text und Aufbau vor Verwendung prüfen.'
+            label = state['custom_site_name'] if state['site'] == 'custom' else state['site']
+            label = re.sub(r'[^\w-]+', '_', label or 'Artikel')[:70]
+            suffix = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8]
+            status = 'Unvollständiger Entwurf' if incomplete else 'Artikelentwurf'
+            prefix = 'DEMO_' if app.config['DEMO_MODE'] else 'UNVOLLSTAENDIGER_ENTWURF_' if incomplete else 'ENTWURF_'
+            filename = prefix + f'{label}_{suffix}.html'
+            notices = [] if app.config['DEMO_MODE'] else ['Entwurf – Inhalt und Sprache vor Veröffentlichung prüfen. Keine automatische Inhaltsfreigabe.']
+            if incomplete:
+                notices.insert(0, 'Unvollständiger Entwurf – nicht als vollständig freigegeben.')
+                if missing:
+                    notices.append('Fehlende Linktexte: ' + ', '.join(missing) + '.')
+            notices.extend(note for note in (length_notice, format_notice) if note)
+            document = ('<!doctype html><html lang="de"><meta charset="utf-8"><title>' + status + '</title><body>' +
+                        ''.join('<p>' + html.escape(note) + '</p>' for note in notices) +
+                        '<article>' + result + '</article></body></html>')
+            # Complete TXT stays plain text; incomplete TXT carries a visible status header.
+            saved_text = ('\n'.join(notices) + '\n\n' if incomplete else '') + text
+            try:
+                OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                (OUTPUT_DIR / filename).write_text(document, encoding='utf-8')
+                (OUTPUT_DIR / filename.replace('.html', '.txt')).write_text(saved_text, encoding='utf-8')
+            except OSError:
+                error = (error + ' ' if error else '') + 'Die Ergebnisdateien konnten nicht gespeichert werden. Bitte Schreibrechte prüfen.'
+                filename = None
     return render_template('index.html', state=state, sites=site_data, site_data=site_data,
-                           pending_issues=pending,
+                           pending_issues=pending, incomplete=incomplete, missing=missing,
+                           length_notice=length_notice, format_notice=format_notice,
                            result=result, filename=filename, count=count, error=error, demo=app.config['DEMO_MODE'], configured_model=model, shutdown_token=app.config['SHUTDOWN_TOKEN'])
 
 
