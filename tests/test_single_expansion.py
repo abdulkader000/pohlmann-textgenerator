@@ -98,7 +98,7 @@ class SingleExpansionTests(unittest.TestCase):
                 self.assertIn('kürzer als gewünscht', page)
                 self.assertIn('alle eingegebenen Linktexte verlinkt', page)
                 self.assertNotIn('Unvollständiger Entwurf', page)
-                self.assertEqual(next(p for p in files if p.suffix == '.txt').read_bytes().decode('utf-8'), source)
+                self.assertEqual(next(p for p in files if p.suffix == '.txt').read_text(encoding='utf-8'), source)
 
     def test_api_error_stops_and_preserves_complete_original_download(self):
         from test_engine_acceptance import httpx
@@ -112,7 +112,7 @@ class SingleExpansionTests(unittest.TestCase):
             self.assertIn('API-Guthaben', page)
             self.assertIn('kürzer als gewünscht', page)
             self.assertNotIn('Unvollständiger Entwurf', page)
-            self.assertEqual(next(p for p in files if p.suffix == '.txt').read_bytes().decode('utf-8'), source)
+            self.assertEqual(next(p for p in files if p.suffix == '.txt').read_text(encoding='utf-8'), source)
 
 
 @unittest.skipUnless(FIXTURES.exists(), 'Private saved Windows articles remain local only.')
